@@ -14,9 +14,7 @@ use uefi::proto::device_path::{
 };
 use uefi::proto::media::file::{File, FileAttribute, FileMode};
 use uefi::proto::media::fs::SimpleFileSystem;
-use uefi::table::boot::{
-    HandleBuffer, LoadImageSource, OpenProtocolAttributes, OpenProtocolParams, SearchType,
-};
+use uefi::table::boot::{HandleBuffer, LoadImageSource, SearchType};
 use uefi::{CStr16, Identify};
 
 const WINDOWS_BOOTMGR_PATH: &CStr16 = cstr16!("\\efi\\microsoft\\boot\\bootmgfw.efi");
@@ -54,8 +52,8 @@ fn windows_bootmgr_device_path(boot_services: &BootServices) -> Option<Box<Devic
         if let Ok(mut file_system) =
             boot_services.open_protocol_exclusive::<SimpleFileSystem>(*handle)
         {
-            if let Ok(mut volume) = file_system.open_volume() {
-                if volume
+            if let Ok(mut root) = file_system.open_volume() {
+                if root
                     .open(
                         WINDOWS_BOOTMGR_PATH,
                         FileMode::Read,
@@ -63,17 +61,9 @@ fn windows_bootmgr_device_path(boot_services: &BootServices) -> Option<Box<Devic
                     )
                     .is_ok()
                 {
-                    let device_path = unsafe {
-                        boot_services.open_protocol::<DevicePath>(
-                            OpenProtocolParams {
-                                handle: *handle,
-                                agent: boot_services.image_handle(),
-                                controller: None,
-                            },
-                            OpenProtocolAttributes::Exclusive,
-                        )
-                    };
-                    let device_path = device_path.unwrap();
+                    let device_path = boot_services
+                        .open_protocol_exclusive::<DevicePath>(*handle)
+                        .unwrap();
                     let mut storage = Vec::new();
                     let boot_path = device_path
                         .node_iter()
