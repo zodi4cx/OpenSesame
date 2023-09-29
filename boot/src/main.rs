@@ -5,24 +5,19 @@ extern crate alloc;
 
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use uefi::prelude::*;
-use uefi::proto::device_path::build::media::FilePath;
-use uefi::proto::device_path::build::DevicePathBuilder;
-use uefi::proto::device_path::text::AllowShortcuts;
-use uefi::proto::device_path::text::DisplayOnly;
-use uefi::proto::device_path::DevicePath;
-use uefi::proto::media::file::File;
-use uefi::proto::media::file::FileAttribute;
-use uefi::proto::media::file::FileMode;
-use uefi::proto::media::fs::SimpleFileSystem;
-use uefi::table::boot::HandleBuffer;
-use uefi::table::boot::LoadImageSource;
-use uefi::table::boot::OpenProtocolAttributes;
-use uefi::table::boot::OpenProtocolParams;
-use uefi::table::boot::SearchType;
-use uefi::{CStr16, Identify};
-
 use alloc::vec::Vec;
+
+use uefi::prelude::*;
+use uefi::proto::device_path::{
+    build::{media::FilePath, DevicePathBuilder},
+    DevicePath,
+};
+use uefi::proto::media::file::{File, FileAttribute, FileMode};
+use uefi::proto::media::fs::SimpleFileSystem;
+use uefi::table::boot::{
+    HandleBuffer, LoadImageSource, OpenProtocolAttributes, OpenProtocolParams, SearchType,
+};
+use uefi::{CStr16, Identify};
 
 const WINDOWS_BOOTMGR_PATH: &CStr16 = cstr16!("\\efi\\microsoft\\boot\\bootmgfw.efi");
 
@@ -30,30 +25,24 @@ const WINDOWS_BOOTMGR_PATH: &CStr16 = cstr16!("\\efi\\microsoft\\boot\\bootmgfw.
 fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
     uefi_services::init(&mut system_table).unwrap();
     let boot_services = system_table.boot_services();
-    log::info!("Searching Windows EFI bootmgr");
-    if let Some(bootmgr_device_path) = windows_bootmgr_device_path(boot_services) {
-        log::info!(
-            "Windows bootmgfw.efi path: {}",
-            bootmgr_device_path
-                .to_string(boot_services, DisplayOnly(false), AllowShortcuts(false))
-                .unwrap()
-                .unwrap()
-        );
-        let bootmgr_image = boot_services
-            .load_image(
-                image_handle,
-                LoadImageSource::FromDevicePath {
-                    device_path: &bootmgr_device_path,
-                    from_boot_manager: false,
-                },
-            )
-            .unwrap();
-        log::info!("[+] Starting Windows EFI Boot Manager (bootmgfw.efi)");
-        system_table.boot_services().stall(5_000_000);
-        boot_services
-            .start_image(bootmgr_image)
-            .expect("[-] Failed to start Windows EFI Boot Manager");
-    }
+    log::info!("[*] Searching Windows EFI bootmgr");
+    let bootmgr_device_path = windows_bootmgr_device_path(boot_services)
+        .expect("Failed to find Windows Boot Manager. Is Windows installed?");
+    log::info!("[+] Found! Loading Boot Manager into memory");
+    let bootmgr_image = boot_services
+        .load_image(
+            image_handle,
+            LoadImageSource::FromDevicePath {
+                device_path: &bootmgr_device_path,
+                from_boot_manager: false,
+            },
+        )
+        .unwrap();
+    log::info!("[+] Starting Windows Boot Manager");
+    system_table.boot_services().stall(5_000_000);
+    boot_services
+        .start_image(bootmgr_image)
+        .expect("Failed to start Windows Boot Manager");
     Status::SUCCESS
 }
 
@@ -97,7 +86,7 @@ fn windows_bootmgr_device_path(boot_services: &BootServices) -> Option<Box<Devic
                         })
                         .unwrap()
                         .finalize()
-                        .unwrap();
+                        .expect("Error creating bootmgfw.efi device path");
                     return Some(boot_path.to_owned());
                 }
             }
