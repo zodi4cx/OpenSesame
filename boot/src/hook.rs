@@ -10,7 +10,31 @@ pub type ImgArchStartBootApplication = fn(
     return_arguments: *mut c_void,
 );
 
-pub unsafe fn trampoline_hook<T>(src: *mut T, dst: *const T) -> [u8; JMP_SIZE] {
+pub struct Hook<T> {
+    original_func: *mut T,
+    hooked_bytes: [u8; JMP_SIZE],
+}
+
+impl<T> Hook<T> {
+    pub unsafe fn new(original_func: *mut T, hook_func: *const T) -> Hook<T> {
+        let hooked_bytes = trampoline_hook(original_func, hook_func);
+        Hook {
+            original_func,
+            hooked_bytes,
+        }
+    }
+
+    pub unsafe fn unhook(&mut self) -> *mut T {
+        ptr::copy_nonoverlapping(
+            self.hooked_bytes.as_ptr(),
+            self.original_func as *mut _,
+            JMP_SIZE,
+        );
+        self.original_func
+    }
+}
+
+unsafe fn trampoline_hook<T>(src: *mut T, dst: *const T) -> [u8; JMP_SIZE] {
     let mut original = [0_u8; JMP_SIZE];
     let mut trampoline: [u8; JMP_SIZE] = [
         0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -26,8 +50,4 @@ pub unsafe fn trampoline_hook<T>(src: *mut T, dst: *const T) -> [u8; JMP_SIZE] {
     // Install hook
     ptr::copy_nonoverlapping(trampoline.as_ptr(), src as *mut _, JMP_SIZE);
     original
-}
-
-pub unsafe fn trampoline_unhook<T>(src: *mut T, original: [u8; JMP_SIZE]) {
-    ptr::copy_nonoverlapping(original.as_ptr(), src as *mut _, JMP_SIZE);
 }

