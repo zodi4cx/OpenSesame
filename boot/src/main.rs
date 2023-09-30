@@ -3,6 +3,8 @@
 
 extern crate alloc;
 
+mod hook;
+
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
