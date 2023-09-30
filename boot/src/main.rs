@@ -5,6 +5,8 @@ extern crate alloc;
 
 mod hook;
 
+use core::u8;
+
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -39,7 +41,7 @@ fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status
         )
         .unwrap();
     log::info!("[+] Starting Windows Boot Manager");
-    system_table.boot_services().stall(5_000_000);
+    system_table.boot_services().stall(2_000_000);
     boot_services
         .start_image(bootmgr_image)
         .expect("Failed to start Windows Boot Manager");
@@ -85,4 +87,28 @@ fn windows_bootmgr_device_path(boot_services: &BootServices) -> Option<Box<Devic
         }
     }
     None
+}
+
+fn pattern_to_hex(pattern: &str) -> Vec<Option<u8>> {
+    let mut result = Vec::new();
+    pattern
+        .split_ascii_whitespace()
+        .into_iter()
+        .for_each(|char| match char {
+            "?" => result.push(None),
+            other => result.push(Some(
+                u8::from_str_radix(other, 16).expect("Invalid signature"),
+            )),
+        });
+    result
+}
+
+fn find_pattern(pattern: &str, data: &[u8]) -> Option<usize> {
+    let pattern = pattern_to_hex(pattern);
+    data.windows(pattern.len()).position(|window| {
+        window
+            .iter()
+            .zip(pattern.iter())
+            .all(|(byte, pattern_byte)| pattern_byte.map_or(true, |b| *byte == b))
+    })
 }
