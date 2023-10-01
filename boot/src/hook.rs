@@ -8,9 +8,9 @@ pub type ImgArchStartBootApplication = fn(
     image_size: u32,
     boot_option: u8,
     return_arguments: *mut c_void,
-);
+) -> uefi::Status;
 
-pub type OslFwpKernelSetupPhase1 = fn(loader_block: *mut u8);
+pub type OslFwpKernelSetupPhase1 = fn(loader_block: *mut u8) -> uefi::Status;
 
 pub type BlImgAllocateBuffer = fn(
     image_buffer: *mut *mut c_void,
@@ -19,7 +19,7 @@ pub type BlImgAllocateBuffer = fn(
     attributes: u32,
     reserved: *mut c_void,
     flags: u32,
-);
+) -> uefi::Status;
 
 pub struct Hook<T> {
     original_func: *mut T,
