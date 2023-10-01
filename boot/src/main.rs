@@ -72,13 +72,21 @@ fn setup_hooks(bootmgr_handle: &Handle, boot_services: &BootServices) {
 }
 
 fn img_arch_start_boot_application_hook(
-    _app_entry: *mut c_void,
-    _image_base: *mut c_void,
-    _image_size: u32,
-    _boot_option: u8,
-    _return_arguments: *mut c_void,
+    app_entry: *mut c_void,
+    image_base: *mut c_void,
+    image_size: u32,
+    boot_option: u8,
+    return_arguments: *mut c_void,
 ) {
-    panic!("It worked!");
+    let img_arch_start_boot_application =
+        unsafe { IMG_ARCH_START_BOOT_APPLICATION.take().unwrap().unhook() };
+    img_arch_start_boot_application(
+        app_entry,
+        image_base,
+        image_size,
+        boot_option,
+        return_arguments,
+    )
 }
 
 fn windows_bootmgr_device_path(boot_services: &BootServices) -> Option<Box<DevicePath>> {

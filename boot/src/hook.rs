@@ -24,13 +24,13 @@ impl<T> Hook<T> {
         }
     }
 
-    pub unsafe fn unhook(&mut self) -> *mut T {
+    pub unsafe fn unhook(&mut self) -> T {
         ptr::copy_nonoverlapping(
             self.hooked_bytes.as_ptr(),
             self.original_func as *mut _,
             JMP_SIZE,
         );
-        self.original_func
+        core::mem::transmute_copy::<_, T>(&self.original_func)
     }
 }
 
