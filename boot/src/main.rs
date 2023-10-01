@@ -11,7 +11,7 @@ use alloc::slice;
 use core::ffi::c_void;
 use core::u8;
 
-use hook::{Hook, ImgArchStartBootApplication, OslFwpKernelSetupPhase1};
+use hook::{BlImgAllocateBuffer, Hook, ImgArchStartBootApplication, OslFwpKernelSetupPhase1};
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::table::boot::LoadImageSource;
@@ -19,9 +19,11 @@ use uefi::table::boot::LoadImageSource;
 const IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE: &str = "48 8B C4 48 89 58 20 44 89 40 18 48 89 50 10 48 89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 68 A9";
 const OSL_EXECUTE_TRANSITION_SIGNATURE: &str = "E8 ? ? ? ? 8B D8 E8 ? ? ? ? 48 83 3D ? ? ? ? ?";
 const OSL_FWP_KERNEL_SETUP_PHASE1_SIGNATURE: &str = "E8 ? ? ? ? 8B F0 85 C0 79 ?";
+const BL_IMG_ALLOCATE_BUFFER_SIGNATURE: &str = "48 8B D6 E8 ? ? ? ? 48 8B 7C 24 ?";
 
 static mut IMG_ARCH_START_BOOT_APPLICATION: Option<Hook<ImgArchStartBootApplication>> = None;
 static mut OSL_FWP_KERNEL_SETUP_PHASE1: Option<Hook<OslFwpKernelSetupPhase1>> = None;
+static mut BL_IMG_ALLOCATE_BUFFER: Option<Hook<BlImgAllocateBuffer>> = None;
 
 #[entry]
 fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
@@ -81,13 +83,15 @@ fn img_arch_start_boot_application_hook(
 
     // Find and hook OslFwpKernelSetupPhase1 to get a pointer to ntoskrnl
     log::info!("[*] Setting up OslFwpKernelSetupPhase1 hook");
+    let winload_data =
+        unsafe { slice::from_raw_parts(winload_base as *const u8, winload_size as _) };
     unsafe {
-        let winload_data = slice::from_raw_parts(winload_base as *const u8, winload_size as _);
         // To try and keep the hooking method version-independent, we will first search for OslExecuteTransiion
         let offset = utils::find_pattern(OSL_EXECUTE_TRANSITION_SIGNATURE, winload_data)
             .expect("Unable to match OslExecuteTransition signature");
         let osl_execute_transition_address =
-            utils::relative_address(winload_base.add(offset), utils::RELATIVE_JMP_SIZE);
+            utils::relative_address(winload_base.add(offset), utils::CALL_SIZE);
+        // From OslExecuteTransiion, find a call to OslFwpKernelSetupPhase1
         let osl_execute_transition_data =
             slice::from_raw_parts(osl_execute_transition_address as *const u8, 0x4f);
         let offset = utils::find_pattern(
@@ -95,13 +99,24 @@ fn img_arch_start_boot_application_hook(
             osl_execute_transition_data,
         )
         .expect("Unable to match OslFwpKernelSetupPhase1 signature");
-        let osl_fwp_kernel_setup_phase1_address = utils::relative_address(
-            osl_execute_transition_address.add(offset),
-            utils::RELATIVE_JMP_SIZE,
-        );
+        let osl_fwp_kernel_setup_phase1_address =
+            utils::relative_address(osl_execute_transition_address.add(offset), utils::CALL_SIZE);
         OSL_FWP_KERNEL_SETUP_PHASE1 = Some(Hook::new(
             osl_fwp_kernel_setup_phase1_address as *mut _,
             osl_fwp_kernel_setup_phase1_hook as *const _,
+        ));
+    }
+
+    // Find and hook BlImgAllocateImageBuffer to allocate the driver
+    log::info!("[*] Setting up BlImgAllocateImageBuffer hook");
+    let offset = utils::find_pattern(BL_IMG_ALLOCATE_BUFFER_SIGNATURE, winload_data)
+        .expect("Unable to match BlImgAllocateImageBuffer signature");
+    unsafe {
+        let bl_img_allocate_buffer_address =
+            utils::relative_address(winload_base.add(offset + 3), utils::CALL_SIZE);
+        BL_IMG_ALLOCATE_BUFFER = Some(Hook::new(
+            bl_img_allocate_buffer_address as *mut _,
+            bl_img_allocate_buffer_hook as *const _,
         ));
     }
 
@@ -119,4 +134,23 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut u8) {
     let osl_fwp_kernel_setup_phase1 =
         unsafe { OSL_FWP_KERNEL_SETUP_PHASE1.take().unwrap().unhook() };
     osl_fwp_kernel_setup_phase1(loader_block)
+}
+
+pub fn bl_img_allocate_buffer_hook(
+    image_buffer: *mut *mut c_void,
+    image_size: u64,
+    memory_type: u32,
+    attributes: u32,
+    reserved: *mut c_void,
+    flags: u32,
+) {
+    let bl_img_allocate_buffer = unsafe { BL_IMG_ALLOCATE_BUFFER.take().unwrap().unhook() };
+    bl_img_allocate_buffer(
+        image_buffer,
+        image_size,
+        memory_type,
+        attributes,
+        reserved,
+        flags,
+    )
 }

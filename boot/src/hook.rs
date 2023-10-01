@@ -12,6 +12,15 @@ pub type ImgArchStartBootApplication = fn(
 
 pub type OslFwpKernelSetupPhase1 = fn(loader_block: *mut u8);
 
+pub type BlImgAllocateBuffer = fn(
+    image_buffer: *mut *mut c_void,
+    image_size: u64,
+    memory_type: u32,
+    attributes: u32,
+    reserved: *mut c_void,
+    flags: u32,
+);
+
 pub struct Hook<T> {
     original_func: *mut T,
     hooked_bytes: [u8; JMP_SIZE],

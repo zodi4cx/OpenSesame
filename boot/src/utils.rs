@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::{ffi::c_void, mem};
 
-pub const RELATIVE_JMP_SIZE: usize = 5;
+pub const CALL_SIZE: usize = 5;
 
 fn pattern_to_hex(pattern: &str) -> Vec<Option<u8>> {
     let mut result = Vec::new();
