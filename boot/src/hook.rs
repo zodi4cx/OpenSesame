@@ -10,6 +10,10 @@ pub type ImgArchStartBootApplication = fn(
     return_arguments: *mut c_void,
 );
 
+pub type OslFwpKernelSetupPhase1 = fn(
+    loader_block: *mut u8,
+);
+
 pub struct Hook<T> {
     original_func: *mut T,
     hooked_bytes: [u8; JMP_SIZE],
