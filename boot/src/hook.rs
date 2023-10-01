@@ -43,6 +43,10 @@ impl<T> Hook<T> {
         );
         core::mem::transmute_copy::<_, T>(&self.original_func)
     }
+
+    pub unsafe fn hook(&mut self, hook_func: *const T) {
+        self.hooked_bytes = trampoline_hook(self.original_func, hook_func);
+    }
 }
 
 unsafe fn trampoline_hook<T>(src: *mut T, dst: *const T) -> [u8; JMP_SIZE] {

