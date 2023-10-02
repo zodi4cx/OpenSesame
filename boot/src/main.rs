@@ -227,6 +227,16 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -
         ntoskrnl.DllBase,
         ntoskrnl.SizeOfImage
     );
+    let driver = unsafe {
+        *utils::get_module_entry(&mut (*loader_block).LoadOrderListHead, TARGET_DRIVER_NAME)
+            .expect("Unable to find ntoskrnl.exe kernel entry")
+    };
+    log::info!(
+        "[*] Found {} at address {:?}, size {:#010x}",
+        TARGET_DRIVER_NAME,
+        driver.DllBase,
+        driver.SizeOfImage,
+    );
     log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)
 }
