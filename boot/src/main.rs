@@ -1,6 +1,6 @@
 #![no_main]
 #![no_std]
-#![feature(offset_of)]
+#![feature(panic_info_message)]
 
 extern crate alloc;
 
@@ -12,7 +12,7 @@ mod windows;
 
 use crate::global::*;
 use crate::hook::Hook;
-use crate::windows::{KLDR_DATA_TABLE_ENTRY, LOADER_PARAMETER_BLOCK};
+use crate::windows::LOADER_PARAMETER_BLOCK;
 use alloc::slice;
 use core::ffi::c_void;
 use core::u8;
@@ -29,9 +29,9 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
             location.line(),
             location.column()
         );
-        // if let Some(message) = info.payload().downcast_ref::<&str>() {
-        //     log::error!("[-] {}", message);
-        // }
+        if let Some(message) = info.message() {
+            log::error!("[-] {}", message);
+        }
     }
     loop {}
 }
@@ -215,11 +215,15 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -
             return osl_fwp_kernel_setup_phase1(loader_block);
         }
     };
-    let ntoskrnl: KLDR_DATA_TABLE_ENTRY = unsafe {
+    let ntoskrnl = unsafe {
         *utils::get_module_entry(&mut (*loader_block).LoadOrderListHead, "ntoskrnl.exe")
             .expect("Unable to find ntoskrnl.exe kernel entry")
     };
-    log::info!("[*] Found ntoskrnl at address {:?}, size {:#010x}", ntoskrnl.DllBase, ntoskrnl.SizeOfImage);
+    log::info!(
+        "[*] Found ntoskrnl at address {:?}, size {:#010x}",
+        ntoskrnl.DllBase,
+        ntoskrnl.SizeOfImage
+    );
     log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)
 }

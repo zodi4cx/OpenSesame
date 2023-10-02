@@ -7,7 +7,6 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-use alloc::string::{FromUtf16Error, String};
 use core::ffi::c_void;
 
 //0x10 bytes (sizeof)
@@ -338,16 +337,6 @@ pub struct UNICODE_STRING {
     pub Length: u16,        // Length of the string
     pub MaximumLength: u16, // Maximum length of the string
     pub Buffer: *mut u16,   // Pointer to the string buffer
-}
-
-impl UNICODE_STRING {
-    pub fn as_str(&self) -> Result<String, FromUtf16Error> {
-        // Convert the UTF-16 buffer to a UTF-8 slice
-        let utf16_slice =
-            unsafe { core::slice::from_raw_parts(self.Buffer, self.Length as usize / 2) };
-        // Convert UTF-16 to UTF-8
-        alloc::string::String::from_utf16(utf16_slice)
-    }
 }
 
 //0x20 bytes (sizeof)

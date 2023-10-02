@@ -1,5 +1,5 @@
 use crate::windows::{KLDR_DATA_TABLE_ENTRY, LIST_ENTRY};
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use core::{ffi::c_void, mem};
 
 pub const CALL_SIZE: usize = 5;
@@ -38,27 +38,27 @@ pub unsafe fn relative_address(address: *const c_void, size: usize) -> *const c_
     address.add(size).offset(i32::from_le_bytes(buffer) as _)
 }
 
-pub fn get_module_entry(
+pub unsafe fn get_module_entry(
     list_head: *mut LIST_ENTRY,
     target_name: &str,
 ) -> Option<*mut KLDR_DATA_TABLE_ENTRY> {
-    let mut entry: *mut LIST_ENTRY = unsafe { (*list_head).Flink };
+    let mut entry: *mut LIST_ENTRY = (*list_head).Flink;
     while entry != list_head {
-        unsafe {
-            // This should be the more correct way of doing things, but requires nightly
-            // and it seems to be causing some weird bugs.
-            let module: *mut KLDR_DATA_TABLE_ENTRY =
-                entry.sub(mem::offset_of!(KLDR_DATA_TABLE_ENTRY, InLoadOrderLinks)) as *mut _;
-            // let module = entry as *mut KLDR_DATA_TABLE_ENTRY;
-            let module_name = (*module).BaseDllName.as_str().unwrap_or_else(|_| {
-                log::error!("[!] Failed to read BaseDllName of KLDR_DATA_TABLE_ENTRY!");
-                String::default()
-            });
-            if module_name == target_name {
-                return Some(module);
-            }
-            entry = (*entry).Flink;
+        let module: *mut KLDR_DATA_TABLE_ENTRY = entry as _;
+        let utf16_slice = unsafe {
+            core::slice::from_raw_parts(
+                (*module).BaseDllName.Buffer,
+                (*module).BaseDllName.Length as usize / 2,
+            )
+        };
+        if utf16_slice
+            .iter()
+            .zip(target_name.bytes().map(|byte| byte as u16))
+            .all(|(&a, b)| a == b)
+        {
+            return Some(module);
         }
+        entry = (*entry).Flink;
     }
     None
 }
