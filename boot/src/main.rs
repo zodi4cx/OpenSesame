@@ -92,6 +92,7 @@ fn setup_hooks(bootmgr_handle: &Handle, boot_services: &BootServices) {
     };
 }
 
+/// Called from bootmgr to start the winload image.
 fn img_arch_start_boot_application_hook(
     app_entry: *mut c_void,
     winload_base: *mut c_void,
@@ -152,6 +153,7 @@ fn img_arch_start_boot_application_hook(
     )
 }
 
+/// Called by winload to allocate image buffers within winload context.
 pub fn bl_img_allocate_buffer_hook(
     image_buffer: *mut *mut c_void,
     image_size: u64,
@@ -205,6 +207,7 @@ pub fn bl_img_allocate_buffer_hook(
     status
 }
 
+/// Called by winload with a valid LPB in winload context before calling ExitBootServices.
 fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -> uefi::Status {
     log::info!("[+] OslFwpKernelSetupPhase1 hook successful!");
     let osl_fwp_kernel_setup_phase1 =
