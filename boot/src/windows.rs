@@ -7,6 +7,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+use alloc::string::{FromUtf16Error, String};
 use core::ffi::c_void;
 
 //0x10 bytes (sizeof)
@@ -24,7 +25,7 @@ pub struct CONFIGURATION_COMPONENT_DATA {
     pub Child: *mut CONFIGURATION_COMPONENT_DATA,   //0x8
     pub Sibling: *mut CONFIGURATION_COMPONENT_DATA, //0x10
     pub ComponentEntry: CONFIGURATION_COMPONENT,    //0x18
-    pub ConfigurationData: *mut u8,                  //0x40
+    pub ConfigurationData: *mut u8,                 //0x40
 }
 
 //0x28 bytes (sizeof)
@@ -33,13 +34,13 @@ pub struct CONFIGURATION_COMPONENT {
     Class: CONFIGURATION_CLASS,                // 0x0
     Type: CONFIGURATION_TYPE,                  // 0x4
     Flags: DEVICE_FLAGS,                       // 0x8
-    Version: u16,                               // 0xc
-    Revision: u16,                              // 0xe
-    Key: u32,                                   // 0x10
+    Version: u16,                              // 0xc
+    Revision: u16,                             // 0xe
+    Key: u32,                                  // 0x10
     AffinityMask: CONFIGURATION_AFFINITY_MASK, // 0x14
-    ConfigurationDataLength: u32,               // 0x18
-    IdentifierLength: u32,                      // 0x1c
-    Identifier: *const i8,                      // 0x20
+    ConfigurationDataLength: u32,              // 0x18
+    IdentifierLength: u32,                     // 0x1c
+    Identifier: *const i8,                     // 0x20
 }
 
 //0x4 bytes (sizeof)
@@ -191,10 +192,10 @@ pub struct ARM_LOADER_BLOCK {
 // 0x40 bytes (sizeof)
 #[repr(C)]
 pub struct FIRMWARE_INFORMATION_LOADER_BLOCK {
-    pub FirmwareTypeUefi: u32,                       // UEFI firmware type
-    pub EfiRuntimeUseIum: u32,                       // EFI runtime use IUM
-    pub EfiRuntimePageProtectionSupported: u32,      // EFI runtime page protection supported
-    pub Reserved: u32,                               // Reserved
+    pub FirmwareTypeUefi: u32,                      // UEFI firmware type
+    pub EfiRuntimeUseIum: u32,                      // EFI runtime use IUM
+    pub EfiRuntimePageProtectionSupported: u32,     // EFI runtime page protection supported
+    pub Reserved: u32,                              // Reserved
     pub u: FIRMWARE_INFORMATION_LOADER_BLOCK_Union, // Union for firmware information
 }
 
@@ -246,7 +247,7 @@ pub struct PCAT_FIRMWARE_INFORMATION {
 #[repr(C)]
 pub struct RTL_RB_TREE {
     pub Root: *mut RTL_BALANCED_NODE, // 0x0
-    pub Encoded: u8,                   // 0x8 (1 bit)
+    pub Encoded: u8,                  // 0x8 (1 bit)
     pub Min: *mut RTL_BALANCED_NODE,  // 0x8
 }
 
@@ -256,9 +257,9 @@ pub struct RTL_BALANCED_NODE {
     pub Children: [*mut RTL_BALANCED_NODE; 2], // 0x0
     pub Left: *mut RTL_BALANCED_NODE,          // 0x0
     pub Right: *mut RTL_BALANCED_NODE,         // 0x8
-    pub Red: u8,                                // 0x10 (1 bit)
-    pub Balance: u8,                            // 0x10 (2 bits)
-    pub ParentValue: u64,                       // 0x10
+    pub Red: u8,                               // 0x10 (1 bit)
+    pub Balance: u8,                           // 0x10 (2 bits)
+    pub ParentValue: u64,                      // 0x10
 }
 
 //TODO (too big and not required for now)
@@ -268,10 +269,10 @@ pub struct LOADER_PARAMETER_EXTENSION;
 //0x170 bytes (sizeof)
 #[repr(C)]
 pub struct LOADER_PARAMETER_BLOCK {
-    pub OsMajorVersion: u32,                                     //0x00
-    pub OsMinorVersion: u32,                                     //0x4
-    pub Size: u32,                                               //0x8
-    pub OsLoaderSecurityVersion: u32,                            //0xc
+    pub OsMajorVersion: u32,                                    //0x00
+    pub OsMinorVersion: u32,                                    //0x4
+    pub Size: u32,                                              //0x8
+    pub OsLoaderSecurityVersion: u32,                           //0xc
     pub LoadOrderListHead: LIST_ENTRY,                          //0x10
     pub MemoryDescriptorListHead: LIST_ENTRY,                   //0x20
     pub BootDriverListHead: LIST_ENTRY,                         //0x30
@@ -279,54 +280,55 @@ pub struct LOADER_PARAMETER_BLOCK {
     pub CoreDriverListHead: LIST_ENTRY,                         //0x50
     pub CoreExtensionsDriverListHead: LIST_ENTRY,               //0x60
     pub TpmCoreDriverListHead: LIST_ENTRY,                      //0x70
-    pub KernelStack: u64,                                        //0x80
-    pub Prcb: u64,                                               //0x88
-    pub Process: u64,                                            //0x90
-    pub Thread: u64,                                             //0x98
-    pub KernelStackSize: u32,                                    //0xa0
-    pub RegistryLength: u32,                                     //0xa4
-    pub RegistryBase: *mut u8,                                   //0xa8
+    pub KernelStack: u64,                                       //0x80
+    pub Prcb: u64,                                              //0x88
+    pub Process: u64,                                           //0x90
+    pub Thread: u64,                                            //0x98
+    pub KernelStackSize: u32,                                   //0xa0
+    pub RegistryLength: u32,                                    //0xa4
+    pub RegistryBase: *mut u8,                                  //0xa8
     pub ConfigurationRoot: *mut CONFIGURATION_COMPONENT_DATA,   //0xb0
-    pub ArcBootDeviceName: *const i8,                            //0xb8
-    pub ArcHalDeviceName: *const i8,                             //0xc0
-    pub NtBootPathName: *const i8,                               //0xc8
-    pub NtHalPathName: *const i8,                                //0xd0
-    pub LoadOptions: *const i8,                                  //0xd8
+    pub ArcBootDeviceName: *const i8,                           //0xb8
+    pub ArcHalDeviceName: *const i8,                            //0xc0
+    pub NtBootPathName: *const i8,                              //0xc8
+    pub NtHalPathName: *const i8,                               //0xd0
+    pub LoadOptions: *const i8,                                 //0xd8
     pub NlsData: *mut NLS_DATA_BLOCK,                           //0xe0
     pub ArcDiskInformation: *mut ARC_DISK_INFORMATION,          //0xe8
     pub Extension: *mut LOADER_PARAMETER_EXTENSION,             //0xf0
     pub u: LOADER_BLOCK,                                        //0xf8
     pub FirmwareInformation: FIRMWARE_INFORMATION_LOADER_BLOCK, //0x108
-    pub OsBootstatPathName: *const i8,                           //0x148
-    pub ArcOSDataDeviceName: *const i8,                          //0x150
-    pub ArcWindowsSysPartName: *const i8,                        //0x158
+    pub OsBootstatPathName: *const i8,                          //0x148
+    pub ArcOSDataDeviceName: *const i8,                         //0x150
+    pub ArcWindowsSysPartName: *const i8,                       //0x158
     pub MemoryDescriptorTree: RTL_RB_TREE,                      //0x160
 }
 
 // 0xa0 bytes (sizeof)
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct KLDR_DATA_TABLE_ENTRY {
     pub InLoadOrderLinks: LIST_ENTRY,                 // 0x0
-    pub ExceptionTable: *const c_void,                 // 0x10
-    pub ExceptionTableSize: u32,                       // 0x18
-    pub GpValue: *const c_void,                        // 0x20
+    pub ExceptionTable: *const c_void,                // 0x10
+    pub ExceptionTableSize: u32,                      // 0x18
+    pub GpValue: *const c_void,                       // 0x20
     pub NonPagedDebugInfo: *mut NON_PAGED_DEBUG_INFO, // 0x28
-    pub DllBase: *const c_void,                        // 0x30
-    pub EntryPoint: *const c_void,                     // 0x38
-    pub SizeOfImage: u32,                              // 0x40
+    pub DllBase: *const c_void,                       // 0x30
+    pub EntryPoint: *const c_void,                    // 0x38
+    pub SizeOfImage: u32,                             // 0x40
     pub FullDllName: UNICODE_STRING,                  // 0x48
     pub BaseDllName: UNICODE_STRING,                  // 0x58
-    pub Flags: u32,                                    // 0x68
-    pub LoadCount: u16,                                // 0x6c
-    pub SignatureLevel: u16,                           // 0x6e
-    pub SectionPointer: *const c_void,                 // 0x70
-    pub CheckSum: u32,                                 // 0x78
-    pub CoverageSectionSize: u32,                      // 0x7c
-    pub CoverageSection: *const c_void,                // 0x80
-    pub LoadedImports: *const c_void,                  // 0x88
-    pub Spare: *const c_void,                          // 0x90
-    pub SizeOfImageNotRounded: u32,                    // 0x98
-    pub TimeDateStamp: u32,                            // 0x9c
+    pub Flags: u32,                                   // 0x68
+    pub LoadCount: u16,                               // 0x6c
+    pub SignatureLevel: u16,                          // 0x6e
+    pub SectionPointer: *const c_void,                // 0x70
+    pub CheckSum: u32,                                // 0x78
+    pub CoverageSectionSize: u32,                     // 0x7c
+    pub CoverageSection: *const c_void,               // 0x80
+    pub LoadedImports: *const c_void,                 // 0x88
+    pub Spare: *const c_void,                         // 0x90
+    pub SizeOfImageNotRounded: u32,                   // 0x98
+    pub TimeDateStamp: u32,                           // 0x9c
 }
 
 // Unicode string structure
@@ -336,6 +338,16 @@ pub struct UNICODE_STRING {
     pub Length: u16,        // Length of the string
     pub MaximumLength: u16, // Maximum length of the string
     pub Buffer: *mut u16,   // Pointer to the string buffer
+}
+
+impl UNICODE_STRING {
+    pub fn as_str(&self) -> Result<String, FromUtf16Error> {
+        // Convert the UTF-16 buffer to a UTF-8 slice
+        let utf16_slice =
+            unsafe { core::slice::from_raw_parts(self.Buffer, self.Length as usize / 2) };
+        // Convert UTF-16 to UTF-8
+        alloc::string::String::from_utf16(utf16_slice)
+    }
 }
 
 //0x20 bytes (sizeof)
