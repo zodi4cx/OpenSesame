@@ -7,16 +7,17 @@ mod boot;
 mod global;
 mod hook;
 mod utils;
+mod windows;
 
 use alloc::slice;
 use core::ffi::c_void;
 use core::u8;
-
 use global::*;
 use hook::Hook;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::table::boot::LoadImageSource;
+use windows::LOADER_PARAMETER_BLOCK;
 
 #[panic_handler]
 fn panic_handler(info: &core::panic::PanicInfo) -> ! {
@@ -202,7 +203,7 @@ pub fn bl_img_allocate_buffer_hook(
     status
 }
 
-fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut u8) -> uefi::Status {
+fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -> uefi::Status {
     log::info!("[+] OslFwpKernelSetupPhase1 hook successful!");
     let osl_fwp_kernel_setup_phase1 =
         unsafe { OSL_FWP_KERNEL_SETUP_PHASE1.take().unwrap().unhook() };

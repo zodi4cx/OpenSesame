@@ -1,3 +1,4 @@
+use crate::windows::LOADER_PARAMETER_BLOCK;
 use core::{ffi::c_void, ptr};
 
 pub const JMP_SIZE: usize = 14;
@@ -10,7 +11,7 @@ pub type ImgArchStartBootApplication = fn(
     return_arguments: *mut c_void,
 ) -> uefi::Status;
 
-pub type OslFwpKernelSetupPhase1 = fn(loader_block: *mut u8) -> uefi::Status;
+pub type OslFwpKernelSetupPhase1 = fn(loader_block: *mut LOADER_PARAMETER_BLOCK) -> uefi::Status;
 
 pub type BlImgAllocateBuffer = fn(
     image_buffer: *mut *mut c_void,

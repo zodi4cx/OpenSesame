@@ -1,5 +1,7 @@
+use crate::hook::{
+    BlImgAllocateBuffer, Hook, ImgArchStartBootApplication, OslFwpKernelSetupPhase1,
+};
 use core::ffi::c_void;
-use crate::hook::{BlImgAllocateBuffer, Hook, ImgArchStartBootApplication, OslFwpKernelSetupPhase1};
 
 pub const IMG_ARCH_START_BOOT_APPLICATION_SIGNATURE: &str = "48 8B C4 48 89 58 20 44 89 40 18 48 89 50 10 48 89 48 08 55 56 57 41 54 41 55 41 56 41 57 48 8D 68 A9";
 pub const OSL_EXECUTE_TRANSITION_SIGNATURE: &str = "E8 ? ? ? ? 8B D8 E8 ? ? ? ? 48 83 3D ? ? ? ? ?";
