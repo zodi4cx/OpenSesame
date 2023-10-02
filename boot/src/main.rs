@@ -112,7 +112,7 @@ fn img_arch_start_boot_application_hook(
         let offset = utils::find_pattern(OSL_EXECUTE_TRANSITION_SIGNATURE, winload_data)
             .expect("Unable to match OslExecuteTransition signature");
         let osl_execute_transition_address =
-            utils::relative_address(winload_base.add(offset), utils::CALL_SIZE);
+            utils::relative_address(winload_base.add(offset + 2), utils::CALL_SIZE);
         // From OslExecuteTransiion, find a call to OslFwpKernelSetupPhase1
         let osl_execute_transition_data =
             slice::from_raw_parts(osl_execute_transition_address as *const u8, 0x4f);
