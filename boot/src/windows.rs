@@ -6,6 +6,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+#![allow(clippy::enum_variant_names)]
 
 use core::ffi::c_void;
 

