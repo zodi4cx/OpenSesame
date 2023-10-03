@@ -1,0 +1,19 @@
+[package]
+name = "driver"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+kernel-alloc = "0.2.3"
+kernel-build = "0.1.0"
+kernel-log = "0.1.2"
+log = "0.4.20"
+
+[dependencies.winapi]
+git = "https://github.com/Trantect/winapi-rs.git"
+branch = "feature/km"
+features = ["wdm", "ntstatus"]
