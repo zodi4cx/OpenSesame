@@ -1,14 +1,17 @@
-use core::ffi::c_void;
-use core::ptr;
+use core::{ffi::c_void, slice};
+use core::{ffi::CStr, ptr};
 use windows_sys::Win32::System::{
     Diagnostics::Debug::{IMAGE_NT_HEADERS64, IMAGE_SECTION_HEADER},
-    SystemServices::{IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE},
+    SystemServices::{
+        IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_EXPORT_DIRECTORY, IMAGE_IMPORT_DESCRIPTOR,
+        IMAGE_NT_SIGNATURE,
+    },
 };
 
 enum ImageDirectory {
     EntryExport = 0,
     EntryImport = 1,
-    EntryBaseReloc = 5,
+    _EntryBaseReloc = 5,
 }
 
 /// Maps the driver manually into memory within winload context.
@@ -33,7 +36,7 @@ pub unsafe fn map_driver(
         .cast::<c_void>()
         .add((*driver_nt_headers).FileHeader.SizeOfOptionalHeader as _)
         as *const IMAGE_SECTION_HEADER;
-    let sections = core::slice::from_raw_parts(
+    let sections = slice::from_raw_parts(
         sections_header,
         (*driver_nt_headers).FileHeader.NumberOfSections as _,
     );
@@ -46,6 +49,13 @@ pub unsafe fn map_driver(
             );
         }
     }
+
+    log::info!("[*] Resolving ntoskrnl imports");
+    let imports_rva = (*driver_nt_headers).OptionalHeader.DataDirectory
+        [ImageDirectory::EntryImport as usize]
+        .VirtualAddress;
+    let _import_descriptor = driver_base.add(imports_rva as _) as *const IMAGE_IMPORT_DESCRIPTOR;
+    // while (*import_descriptor).FirstThunk != 0 {}
 }
 
 unsafe fn image_dos_header(module_base: *const c_void) -> Option<*const IMAGE_DOS_HEADER> {
@@ -66,4 +76,31 @@ pub unsafe fn size_of_image(module_base: *const c_void) -> u32 {
     (*image_nt_headers(module_base).expect("Failed to parse NT Headers"))
         .OptionalHeader
         .SizeOfImage
+}
+
+unsafe fn get_export(base: *const c_void, export: &CStr) -> *const c_void {
+    let nt_headers = image_nt_headers(base).expect("Failed to parse NT Headers");
+    let exports_rva = (*nt_headers).OptionalHeader.DataDirectory
+        [ImageDirectory::EntryExport as usize]
+        .VirtualAddress;
+    let exports = *base.add(exports_rva as _).cast::<IMAGE_EXPORT_DIRECTORY>();
+    let names_rva = slice::from_raw_parts(
+        base.add(exports.AddressOfNames as _).cast::<u32>(),
+        exports.NumberOfNames as _,
+    );
+    for (name_rva, &i) in names_rva.iter().enumerate() {
+        let func = CStr::from_ptr(base.add(name_rva as _) as _);
+        if export == func {
+            let func_rva = slice::from_raw_parts(
+                base.add(exports.AddressOfFunctions as _).cast::<u32>(),
+                exports.NumberOfFunctions as _,
+            );
+            let ordinal_rva = slice::from_raw_parts(
+                base.add(exports.AddressOfNameOrdinals as _).cast::<u16>(),
+                exports.NumberOfNames as _,
+            );
+            return base.add(func_rva[ordinal_rva[i as usize] as usize] as usize);
+        }
+    }
+    core::ptr::null()
 }
