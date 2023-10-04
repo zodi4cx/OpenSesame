@@ -178,9 +178,12 @@ pub fn bl_img_allocate_buffer_hook(
     // Check if we can allocate a buffer for our driver
     if status == Status::SUCCESS && memory_type == BL_MEMORY_TYPE_APPLICATION {
         unsafe {
+            let driver_size = mapper::size_of_image(DRIVER_DATA.as_ptr() as _)
+                .try_into()
+                .unwrap();
             let status = bl_img_allocate_buffer(
                 &mut DRIVER_ALLOCATED_BUFFER as *mut *mut c_void,
-                DRIVER_SIZE,
+                driver_size,
                 BL_MEMORY_TYPE_APPLICATION,
                 BL_MEMORY_ATTRIBUTE_RWX,
                 core::ptr::null_mut(),
@@ -188,8 +191,9 @@ pub fn bl_img_allocate_buffer_hook(
             );
             if status == Status::SUCCESS {
                 log::info!(
-                    "[*] Allocated buffer for driver at address {:?}",
-                    DRIVER_ALLOCATED_BUFFER
+                    "[*] Allocated buffer for driver at address {:?}, size {:#010x}",
+                    DRIVER_ALLOCATED_BUFFER,
+                    driver_size
                 );
             } else {
                 log::info!("[!] Driver allocation failed! Status code {:?}", status);

@@ -17,4 +17,4 @@ pub static mut OSL_FWP_KERNEL_SETUP_PHASE1: Option<Hook<OslFwpKernelSetupPhase1>
 pub static mut BL_IMG_ALLOCATE_BUFFER: Option<Hook<BlImgAllocateBuffer>> = None;
 
 pub static mut DRIVER_ALLOCATED_BUFFER: *mut c_void = core::ptr::null_mut();
-pub static mut DRIVER_SIZE: u64 = 0x100;
+pub static DRIVER_DATA: &[u8] = core::include_bytes!("../../target/x86_64-pc-windows-msvc/sesame.sys");
