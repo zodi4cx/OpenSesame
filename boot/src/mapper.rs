@@ -116,7 +116,6 @@ unsafe fn get_export(base: *const c_void, export: &CStr) -> Option<*const c_void
     );
     for (i, &name_rva) in names_rva.iter().enumerate() {
         let func = CStr::from_ptr(base.add(name_rva as _) as _);
-        log::debug!("[D] Current symbol: {func:?}");
         if export == func {
             let func_rva = slice::from_raw_parts(
                 base.add(exports.AddressOfFunctions as _).cast::<u32>(),
