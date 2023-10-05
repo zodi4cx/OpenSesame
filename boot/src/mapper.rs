@@ -1,6 +1,8 @@
-use core::{ffi::c_void, slice};
-use core::{ffi::CStr, ptr};
-use windows_sys::Win32::System::SystemServices::IMAGE_IMPORT_BY_NAME;
+use core::{
+    ffi::{c_void, CStr},
+    mem, ptr, slice,
+};
+use windows_sys::Win32::System::SystemServices::{IMAGE_BASE_RELOCATION, IMAGE_IMPORT_BY_NAME};
 use windows_sys::Win32::System::{
     Diagnostics::Debug::{IMAGE_NT_HEADERS64, IMAGE_SECTION_HEADER},
     SystemServices::{
@@ -13,7 +15,24 @@ use windows_sys::Win32::System::{
 enum ImageDirectory {
     EntryExport = 0,
     EntryImport = 1,
-    _EntryBaseReloc = 5,
+    EntryBaseReloc = 5,
+}
+
+#[repr(u16)]
+enum ImageRel {
+    BasedAbsolute,
+    BasedDir64,
+    Unknown,
+}
+
+impl From<u16> for ImageRel {
+    fn from(value: u16) -> Self {
+        match value {
+            0 => ImageRel::BasedAbsolute,
+            10 => ImageRel::BasedDir64,
+            _ => ImageRel::Unknown,
+        }
+    }
 }
 
 /// Maps the driver manually into memory within winload context.
@@ -77,6 +96,42 @@ pub unsafe fn map_driver(
                 thunk_original = thunk_original.add(1);
             }
             import_descriptor = import_descriptor.add(1);
+        }
+    }
+
+    log::info!("[*] Resolving relocations");
+    let base_reloc_dir =
+        (*driver_nt_headers).OptionalHeader.DataDirectory[ImageDirectory::EntryBaseReloc as usize];
+    if base_reloc_dir.VirtualAddress != 0 {
+        let mut reloc =
+            driver_base.add(base_reloc_dir.VirtualAddress as _) as *const IMAGE_BASE_RELOCATION;
+        let mut current_size = 0;
+        while current_size < base_reloc_dir.Size {
+            let reloc_length = ((*reloc).SizeOfBlock as usize
+                - mem::size_of::<IMAGE_BASE_RELOCATION>())
+                / mem::size_of::<u16>();
+            let reloc_address = reloc
+                .cast::<c_void>()
+                .add(mem::size_of::<IMAGE_BASE_RELOCATION>())
+                as *const u16;
+            let reloc_data = slice::from_raw_parts(reloc_address, reloc_length);
+            let reloc_base = driver_base.add((*reloc).VirtualAddress as _);
+            for &data in reloc_data {
+                let reloc_type: ImageRel = (data >> 12).into();
+                let reloc_offset = data & 0xFFF;
+                match reloc_type {
+                    ImageRel::BasedAbsolute => (),
+                    ImageRel::BasedDir64 => {
+                        let rva = reloc_base.add(reloc_offset as _).cast::<u64>();
+                        *rva = driver_base
+                            .offset(*rva as isize - (*driver_nt_headers).OptionalHeader.ImageBase as isize)
+                            as u64;
+                    }
+                    ImageRel::Unknown => panic!("Unsupported relocation type"),
+                }
+            }
+            current_size += (*reloc).SizeOfBlock;
+            reloc = reloc_address.add(reloc_length) as _;
         }
     }
 }
