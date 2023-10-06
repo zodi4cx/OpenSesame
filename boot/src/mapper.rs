@@ -1,3 +1,4 @@
+use crate::global::{DRIVER_EXPORT_NAME, DRIVER_EXPORT_SIZE};
 use core::{
     ffi::{c_void, CStr},
     mem, ptr, slice,
@@ -35,12 +36,12 @@ impl From<u16> for ImageRel {
     }
 }
 
-/// Maps the driver manually into memory within winload context.
+/// Maps the driver manually into memory within winload context. Returns driver's entrypoint.
 pub unsafe fn map_driver(
     driver_base: *mut c_void,
     ntoskrnl_base: *const c_void,
-    _target_function: *mut c_void,
-) {
+    target_function: *mut c_void,
+) -> *const c_void {
     let driver_buffer = crate::global::DRIVER_DATA;
 
     log::info!("[*] Mapping headers");
@@ -123,9 +124,9 @@ pub unsafe fn map_driver(
                     ImageRel::BasedAbsolute => (),
                     ImageRel::BasedDir64 => {
                         let rva = reloc_base.add(reloc_offset as _).cast::<u64>();
-                        *rva = driver_base
-                            .offset(*rva as isize - (*driver_nt_headers).OptionalHeader.ImageBase as isize)
-                            as u64;
+                        *rva = driver_base.offset(
+                            *rva as isize - (*driver_nt_headers).OptionalHeader.ImageBase as isize,
+                        ) as u64;
                     }
                     ImageRel::Unknown => panic!("Unsupported relocation type"),
                 }
@@ -134,6 +135,16 @@ pub unsafe fn map_driver(
             reloc = reloc_address.add(reloc_length) as _;
         }
     }
+
+    log::info!("[*] Copying restore data to driver export: \"{DRIVER_EXPORT_NAME}\"");
+    let driver_data = get_export(
+        driver_base,
+        CStr::from_ptr(DRIVER_EXPORT_NAME.as_ptr() as _),
+    )
+    .expect("Unable to find target driver export");
+    ptr::copy_nonoverlapping(target_function, driver_data as _, DRIVER_EXPORT_SIZE);
+
+    driver_base.add((*driver_nt_headers).OptionalHeader.AddressOfEntryPoint as _)
 }
 
 unsafe fn image_dos_header(module_base: *const c_void) -> Option<*const IMAGE_DOS_HEADER> {

@@ -14,6 +14,14 @@ use winapi::{
     },
 };
 
+const JMP_SIZE: usize = 14;
+const LEA_SIZE: usize = 7;
+const RESTORE_DATA_SIZE: usize = JMP_SIZE + LEA_SIZE;
+
+#[no_mangle]
+#[export_name = "RestoreData"]
+pub static restore_data: [u8; RESTORE_DATA_SIZE] = [0; RESTORE_DATA_SIZE];
+
 #[global_allocator]
 static GLOBAL: kernel_alloc::KernelAlloc = kernel_alloc::KernelAlloc;
 

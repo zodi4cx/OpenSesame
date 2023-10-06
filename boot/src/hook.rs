@@ -1,7 +1,6 @@
-use crate::windows::LOADER_PARAMETER_BLOCK;
+pub use crate::global::JMP_SIZE;
+use crate::{global::LEA_SIZE, windows::LOADER_PARAMETER_BLOCK};
 use core::{ffi::c_void, ptr};
-
-pub const JMP_SIZE: usize = 14;
 
 pub type ImgArchStartBootApplication = fn(
     app_entry: *mut c_void,
@@ -66,4 +65,16 @@ unsafe fn trampoline_hook<T>(src: *mut T, dst: *const T) -> [u8; JMP_SIZE] {
     // Install hook
     ptr::copy_nonoverlapping(trampoline.as_ptr(), src as *mut _, JMP_SIZE);
     original
+}
+
+/// Replace the entry point of `dst_entry_point` with `src_entry_point`.
+pub unsafe fn hook_driver(src_entry_point: *const c_void, dst_entry_point: *mut c_void) {
+    // lea r8, [rip - 7]
+    let lea_instruction: [u8; LEA_SIZE] = [0x4C, 0x8D, 0x05, 0xF9, 0xFF, 0xFF, 0xFF];
+    ptr::copy_nonoverlapping(
+        lea_instruction.as_ptr() as _,
+        dst_entry_point,
+        lea_instruction.len(),
+    );
+    trampoline_hook(dst_entry_point.add(LEA_SIZE), src_entry_point);
 }
