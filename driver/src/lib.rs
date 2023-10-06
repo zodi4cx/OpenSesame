@@ -1,4 +1,5 @@
 #![no_std]
+#![feature(panic_info_message)]
 
 mod include;
 
@@ -27,7 +28,7 @@ const RESTORE_DATA_SIZE: usize = JMP_SIZE + LEA_SIZE;
 
 #[no_mangle]
 #[export_name = "RestoreData"]
-pub static restore_data: [u8; RESTORE_DATA_SIZE] = [0; RESTORE_DATA_SIZE];
+pub static mut RESTORE_DATA: [u8; RESTORE_DATA_SIZE] = [0; RESTORE_DATA_SIZE];
 
 #[global_allocator]
 static GLOBAL: kernel_alloc::KernelAlloc = kernel_alloc::KernelAlloc;
@@ -42,7 +43,18 @@ pub extern "system" fn __CxxFrameHandler3(_: *mut u8, _: *mut u8, _: *mut u8, _:
 
 #[cfg(not(test))]
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+    if let Some(location) = info.location() {
+        log::error!(
+            "[-] Panic in {} at ({}, {}):",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+        if let Some(message) = info.message() {
+            log::error!("[-] {}", message);
+        }
+    }
     loop {}
 }
 
@@ -59,21 +71,20 @@ pub extern "system" fn driver_entry(
     log::info!("[+] Driver entry called! Welcome back");
     log::info!("[*] Restoring original entry point");
     unsafe {
-        copy_data(&restore_data, target_entry);
+        copy_data(&RESTORE_DATA, target_entry);
+        include::ntddk::KeBugCheck(0xE2);
     }
 
     log::info!("[*] Executing unhooked DriverEntry of target driver");
-    let original_driver_entry = unsafe {
-        core::mem::transmute::<*mut c_void, DriverEntry>(target_entry)
-    };
+    let original_driver_entry =
+        unsafe { core::mem::transmute::<*mut c_void, DriverEntry>(target_entry) };
     original_driver_entry(driver_object, registry_path)
 }
 
 unsafe fn copy_data(src: &[u8], dst: *mut c_void) {
     let mdl = IoAllocateMdl(dst, src.len() as _, 0, 0, ptr::null_mut());
     if mdl.is_null() {
-        log::error!("[!] IoAllocateMdl failed");
-        panic!();
+        panic!("IoAllocateMdl failed");
     }
     MmProbeAndLockPages(
         mdl,
@@ -89,10 +100,9 @@ unsafe fn copy_data(src: &[u8], dst: *mut c_void) {
         MM_PAGE_PRIORITY::HighPagePriority,
     );
     if mapped.is_null() {
-        log::error!("[!] MmMapLockedPagesSpecifyCache failed");
         MmUnlockPages(mdl);
         IoFreeMdl(mdl);
-        panic!()
+        panic!("MmMapLockedPagesSpecifyCache failed");
     }
     ptr::copy_nonoverlapping(src.as_ptr(), mapped as _, src.len());
     MmUnmapLockedPages(mapped, mdl);

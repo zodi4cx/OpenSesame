@@ -37,4 +37,6 @@ extern "system" {
     pub fn IoFreeMdl(Mdl: PMDL);
 
     pub fn MmUnmapLockedPages(BaseAddress: PVOID, MemoryDescriptorList: PMDL);
+
+    pub fn KeBugCheck(BugCheckCode: ULONG) -> !;
 }

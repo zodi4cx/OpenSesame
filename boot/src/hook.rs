@@ -67,14 +67,13 @@ unsafe fn trampoline_hook<T>(src: *mut T, dst: *const T) -> [u8; JMP_SIZE] {
     original
 }
 
-/// Replace the entry point of `dst_entry_point` with `src_entry_point`.
-pub unsafe fn hook_driver(src_entry_point: *const c_void, dst_entry_point: *mut c_void) {
+pub unsafe fn hook_driver(target_entry: *const c_void, original_entry: *mut c_void) {
     // lea r8, [rip - 7]
     let lea_instruction: [u8; LEA_SIZE] = [0x4C, 0x8D, 0x05, 0xF9, 0xFF, 0xFF, 0xFF];
     ptr::copy_nonoverlapping(
         lea_instruction.as_ptr() as _,
-        dst_entry_point,
+        original_entry,
         lea_instruction.len(),
     );
-    trampoline_hook(dst_entry_point.add(LEA_SIZE), src_entry_point);
+    trampoline_hook(original_entry.add(LEA_SIZE), target_entry);
 }
