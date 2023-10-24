@@ -36,6 +36,7 @@ pub enum MM_PAGE_PRIORITY {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct IMAGE_INFO {
+    pub Properties: ULONG,
     pub ImageBase: PVOID,
     pub ImageSelector: ULONG,
     pub ImageSize: SIZE_T,

