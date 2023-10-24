@@ -24,7 +24,9 @@ use winapi::{
 };
 
 use crate::include::{
-    ntddk::{IoFreeMdl, MmUnlockPages, PsSetLoadImageNotifyRoutine},
+    ntddk::{
+        IoFreeMdl, MmUnlockPages, PsRemoveLoadImageNotifyRoutine, PsSetLoadImageNotifyRoutine,
+    },
     types::LOAD_IMAGE_NOTIFY_ROUTINE,
 };
 
@@ -61,7 +63,7 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
             log::error!("[-] {}", message);
         }
     }
-    loop {}
+    unsafe { include::ntddk::KeBugCheck(0xE2) }
 }
 
 type DriverEntry =
@@ -129,9 +131,23 @@ pub unsafe extern "C" fn load_image_callback(
         .expect("Failed to read UTF-16 string")
         .ends_with("NtlmShared.dll")
     {
-        log::info!(
-            "[+] Found NtlmShared.dll at address {:?}",
-            (*image_info).ImageBase
-        );
+        let target_base = (*image_info).ImageBase;
+        log::info!("[+] Found NtlmShared.dll at address {:?}", target_base);
+        // TODO: Implement get_export function
+        // let msvp_password_validate = get_export(
+        //     target_base,
+        //     CStr::from_ptr("MsvpPasswordValidate".as_ptr() as _),
+        // )
+        // .expect("[-] Failed to find MsvpPasswordValidate export");
+        // log::info!(
+        //     "[+] MsvpPasswordValidate at address {:?}",
+        //     msvp_password_validate
+        // );
+
+        // Clean-up the load image callback
+        match PsRemoveLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE) {
+            STATUS_SUCCESS => log::info!("[*] Unregistered load image callback. Goodbye!"),
+            _ => log::error!("[-] Failed to unregister load image callback"),
+        }
     }
 }

@@ -38,6 +38,11 @@ extern "system" {
 
     pub fn MmUnmapLockedPages(BaseAddress: PVOID, MemoryDescriptorList: PMDL);
 
+    pub fn KeBugCheck(BugCheckCode: ULONG) -> !;
+
     #[must_use]
     pub fn PsSetLoadImageNotifyRoutine(NotifyRoutine: LOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
+
+    #[must_use]
+    pub fn PsRemoveLoadImageNotifyRoutine(NotifyRoutine: LOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
 }
