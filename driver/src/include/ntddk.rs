@@ -4,7 +4,7 @@ use winapi::{
         ndis::PMDL,
         wdm::{KPROCESSOR_MODE, PIRP},
     },
-    shared::ntdef::{BOOLEAN, PVOID, ULONG},
+    shared::ntdef::{BOOLEAN, NTSTATUS, PVOID, ULONG},
 };
 
 #[link(name = "ntoskrnl")]
@@ -38,5 +38,6 @@ extern "system" {
 
     pub fn MmUnmapLockedPages(BaseAddress: PVOID, MemoryDescriptorList: PMDL);
 
-    pub fn KeBugCheck(BugCheckCode: ULONG) -> !;
+    #[must_use]
+    pub fn PsSetLoadImageNotifyRoutine(NotifyRoutine: LOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
 }

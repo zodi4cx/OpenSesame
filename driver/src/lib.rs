@@ -10,17 +10,17 @@ extern crate alloc;
 use core::ptr;
 use include::{
     ntddk::{IoAllocateMdl, MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmUnmapLockedPages},
-    types::{LOCK_OPERATION, MEMORY_CACHING_TYPE, MM_PAGE_PRIORITY},
+    types::{IMAGE_INFO, LOCK_OPERATION, MEMORY_CACHING_TYPE, MM_PAGE_PRIORITY, UNICODE_STRING},
 };
 use kernel_log::KernelLogger;
 use log::LevelFilter;
 use winapi::{
     ctypes::c_void,
     km::wdm::{DRIVER_OBJECT, KPROCESSOR_MODE},
-    shared::ntdef::{NTSTATUS, UNICODE_STRING},
+    shared::{ntdef::{HANDLE, NTSTATUS}, ntstatus::STATUS_SUCCESS},
 };
 
-use crate::include::ntddk::{IoFreeMdl, MmUnlockPages};
+use crate::include::{ntddk::{IoFreeMdl, MmUnlockPages, PsSetLoadImageNotifyRoutine}, types::LOAD_IMAGE_NOTIFY_ROUTINE};
 
 const JMP_SIZE: usize = 14;
 const LEA_SIZE: usize = 7;
@@ -69,15 +69,16 @@ pub unsafe extern "system" fn driver_entry(
 ) -> NTSTATUS {
     KernelLogger::init(LevelFilter::Info).expect("Failed to initialize logger");
     log::info!("[+] Driver entry called! Welcome back");
+
     log::info!("[*] Restoring original entry point");
-    unsafe {
-        copy_data(&RESTORE_DATA, target_entry);
-        include::ntddk::KeBugCheck(0xE2);
+    copy_data(&RESTORE_DATA, target_entry);
+    log::info!("[*] Registering callback for loaded images");
+    if PsSetLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE) == STATUS_SUCCESS {
+        log::info!("[+] Callback registered successfully!");
     }
 
     log::info!("[*] Executing unhooked DriverEntry of target driver");
-    let original_driver_entry =
-        unsafe { core::mem::transmute::<*mut c_void, DriverEntry>(target_entry) };
+    let original_driver_entry = core::mem::transmute::<*mut c_void, DriverEntry>(target_entry);
     original_driver_entry(driver_object, registry_path)
 }
 
@@ -108,4 +109,16 @@ unsafe fn copy_data(src: &[u8], dst: *mut c_void) {
     MmUnmapLockedPages(mapped, mdl);
     MmUnlockPages(mdl);
     IoFreeMdl(mdl);
+}
+
+pub unsafe extern "C" fn load_image_callback(
+    full_image_name: *const UNICODE_STRING,
+    process_id: HANDLE,
+    _image_info: *mut IMAGE_INFO,
+) {
+    log::info!(
+        "[D] Module '{}' loaded for process {:?}",
+        (*full_image_name).as_str().unwrap(),
+        process_id
+    );
 }

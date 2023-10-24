@@ -1,3 +1,9 @@
+use alloc::string::{String, FromUtf16Error};
+use winapi::shared::{
+    basetsd::SIZE_T,
+    ntdef::{HANDLE, PVOID, ULONG},
+};
+
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum LOCK_OPERATION {
@@ -26,3 +32,36 @@ pub enum MM_PAGE_PRIORITY {
     NormalPagePriority = 16,
     HighPagePriority = 32,
 }
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct IMAGE_INFO {
+    pub ImageBase: PVOID,
+    pub ImageSelector: ULONG,
+    pub ImageSize: SIZE_T,
+    pub ImageSectionNumber: ULONG,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct UNICODE_STRING {
+    pub Length: u16,        // Length of the string
+    pub MaximumLength: u16, // Maximum length of the string
+    pub Buffer: *mut u16,   // Pointer to the string buffer
+}
+
+impl UNICODE_STRING {
+    pub fn as_str(&self) -> Result<String, FromUtf16Error> {
+        // Convert the UTF-16 buffer to a UTF-8 slice
+        let utf16_slice =
+            unsafe { core::slice::from_raw_parts(self.Buffer, self.Length as usize / 2) };
+        // Convert UTF-16 to UTF-8
+        String::from_utf16(utf16_slice)
+    }
+}
+
+pub type LOAD_IMAGE_NOTIFY_ROUTINE = unsafe extern "C" fn(
+    FullImageName: *const UNICODE_STRING,
+    ProcessId: HANDLE,
+    ImageInfo: *mut IMAGE_INFO,
+);
