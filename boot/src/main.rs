@@ -178,7 +178,7 @@ pub fn bl_img_allocate_buffer_hook(
     // Check if we can allocate a buffer for our driver
     if status == Status::SUCCESS && memory_type == BL_MEMORY_TYPE_APPLICATION {
         unsafe {
-            let driver_size = mapper::size_of_image(DRIVER_DATA.as_ptr() as _)
+            let driver_size = common::size_of_image(DRIVER_DATA.as_ptr() as _)
                 .try_into()
                 .unwrap();
             let status = bl_img_allocate_buffer(
