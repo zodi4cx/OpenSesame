@@ -1,7 +1,9 @@
+use core::ffi::c_void;
+
 use alloc::string::{String, FromUtf16Error};
 use winapi::shared::{
     basetsd::SIZE_T,
-    ntdef::{HANDLE, PVOID, ULONG},
+    ntdef::{HANDLE, ULONG},
 };
 
 #[repr(u32)]
@@ -37,7 +39,7 @@ pub enum MM_PAGE_PRIORITY {
 #[derive(Copy, Clone)]
 pub struct IMAGE_INFO {
     pub Properties: ULONG,
-    pub ImageBase: PVOID,
+    pub ImageBase: *mut c_void,
     pub ImageSelector: ULONG,
     pub ImageSize: SIZE_T,
     pub ImageSectionNumber: ULONG,
