@@ -62,7 +62,7 @@ type DriverEntry =
     fn(driver_object: &mut DRIVER_OBJECT, registry_path: &UNICODE_STRING) -> NTSTATUS;
 
 #[no_mangle]
-pub extern "system" fn driver_entry(
+pub unsafe extern "system" fn driver_entry(
     driver_object: &mut DRIVER_OBJECT,
     registry_path: &UNICODE_STRING,
     target_entry: *mut c_void,

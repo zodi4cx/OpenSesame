@@ -13,10 +13,10 @@ use windows_sys::Win32::System::{
     WindowsProgramming::IMAGE_THUNK_DATA64,
 };
 
-enum ImageDirectory {
-    EntryExport = 0,
-    EntryImport = 1,
-    EntryBaseReloc = 5,
+enum ImageDirectoryEntry {
+    Export = 0,
+    Import = 1,
+    BaseReloc = 5,
 }
 
 #[repr(u16)]
@@ -74,7 +74,7 @@ pub unsafe fn map_driver(
 
     log::info!("[*] Resolving ntoskrnl imports");
     let imports_rva = (*driver_nt_headers).OptionalHeader.DataDirectory
-        [ImageDirectory::EntryImport as usize]
+        [ImageDirectoryEntry::Import as usize]
         .VirtualAddress;
     if imports_rva != 0 {
         let mut import_descriptor =
@@ -102,7 +102,7 @@ pub unsafe fn map_driver(
 
     log::info!("[*] Resolving relocations");
     let base_reloc_dir =
-        (*driver_nt_headers).OptionalHeader.DataDirectory[ImageDirectory::EntryBaseReloc as usize];
+        (*driver_nt_headers).OptionalHeader.DataDirectory[ImageDirectoryEntry::BaseReloc as usize];
     if base_reloc_dir.VirtualAddress != 0 {
         let mut reloc =
             driver_base.add(base_reloc_dir.VirtualAddress as _) as *const IMAGE_BASE_RELOCATION;
@@ -170,7 +170,7 @@ pub unsafe fn size_of_image(module_base: *const c_void) -> u32 {
 unsafe fn get_export(base: *const c_void, export: &CStr) -> Option<*const c_void> {
     let nt_headers = image_nt_headers(base).expect("Failed to parse NT Headers");
     let exports_rva = (*nt_headers).OptionalHeader.DataDirectory
-        [ImageDirectory::EntryExport as usize]
+        [ImageDirectoryEntry::Export as usize]
         .VirtualAddress;
     if exports_rva == 0 {
         return None;
@@ -191,7 +191,7 @@ unsafe fn get_export(base: *const c_void, export: &CStr) -> Option<*const c_void
                 base.add(exports.AddressOfNameOrdinals as _).cast::<u16>(),
                 exports.NumberOfNames as _,
             );
-            return Some(base.add(func_rva[ordinal_rva[i as usize] as usize] as usize));
+            return Some(base.add(func_rva[ordinal_rva[i] as usize] as usize));
         }
     }
     None
