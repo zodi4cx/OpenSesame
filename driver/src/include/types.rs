@@ -70,4 +70,5 @@ pub type LOAD_IMAGE_NOTIFY_ROUTINE = unsafe extern "C" fn(
 );
 
 #[repr(transparent)]
+#[derive(Clone, Copy, Default)]
 pub struct PEPROCESS(pub isize);

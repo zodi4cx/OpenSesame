@@ -54,4 +54,5 @@ extern "system" {
 
     pub fn KeDetachProcess();
 
+    pub fn ObDereferenceObject(ptr: *mut c_void);
 }
