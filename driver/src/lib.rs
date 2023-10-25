@@ -25,8 +25,8 @@ use winapi::{
 
 use crate::include::{
     ntddk::{
-        IoFreeMdl, KeAttachProcess, KeDetachProcess, MmUnlockPages, PsLookupProcessByProcessId,
-        PsRemoveLoadImageNotifyRoutine, PsSetLoadImageNotifyRoutine, ObDereferenceObject,
+        IoFreeMdl, KeAttachProcess, KeDetachProcess, MmUnlockPages, ObDereferenceObject,
+        PsLookupProcessByProcessId, PsSetLoadImageNotifyRoutine,
     },
     types::{LOAD_IMAGE_NOTIFY_ROUTINE, PEPROCESS},
 };
@@ -160,12 +160,5 @@ pub unsafe extern "C" fn load_image_callback(
         KeDetachProcess();
         ObDereferenceObject(process.0 as _);
         log::info!("[*] Dettached from LSASS process");
-
-        // Clean-up the load image callback
-        // TODO: This crashes the OS... although it didn't before?
-        // match PsRemoveLoadImageNotifyRoutine(load_image_callback as LOAD_IMAGE_NOTIFY_ROUTINE) {
-        //     STATUS_SUCCESS => log::info!("[*] Unregistered load image callback. Goodbye!"),
-        //     _ => log::error!("[-] Failed to unregister load image callback"),
-        // }
     }
 }
