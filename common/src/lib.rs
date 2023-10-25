@@ -37,7 +37,7 @@ pub unsafe fn size_of_image(module_base: *const c_void) -> u32 {
         .SizeOfImage
 }
 
-pub unsafe fn get_export(base: *const c_void, export: &CStr) -> Option<*const c_void> {
+pub unsafe fn get_export(base: *const c_void, export: &CStr) -> Option<*mut c_void> {
     let nt_headers = image_nt_headers(base).expect("Failed to parse NT Headers");
     let exports_rva = (*nt_headers).OptionalHeader.DataDirectory
         [ImageDirectoryEntry::Export as usize]
@@ -61,7 +61,7 @@ pub unsafe fn get_export(base: *const c_void, export: &CStr) -> Option<*const c_
                 base.add(exports.AddressOfNameOrdinals as _).cast::<u16>(),
                 exports.NumberOfNames as _,
             );
-            return Some(base.add(func_rva[ordinal_rva[i] as usize] as usize));
+            return Some(base.add(func_rva[ordinal_rva[i] as usize] as usize) as _);
         }
     }
     None

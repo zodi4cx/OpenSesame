@@ -68,3 +68,6 @@ pub type LOAD_IMAGE_NOTIFY_ROUTINE = unsafe extern "C" fn(
     ProcessId: HANDLE,
     ImageInfo: *mut IMAGE_INFO,
 );
+
+#[repr(transparent)]
+pub struct PEPROCESS(pub isize);

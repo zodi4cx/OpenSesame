@@ -1,16 +1,17 @@
 use super::types::*;
+use core::ffi::c_void;
 use winapi::{
     km::{
         ndis::PMDL,
         wdm::{KPROCESSOR_MODE, PIRP},
     },
-    shared::ntdef::{BOOLEAN, NTSTATUS, PVOID, ULONG},
+    shared::ntdef::{BOOLEAN, HANDLE, NTSTATUS, PVOID, ULONG},
 };
 
 #[link(name = "ntoskrnl")]
 extern "system" {
     pub fn IoAllocateMdl(
-        VirtualAddress: PVOID,
+        VirtualAddress: *mut c_void,
         Length: ULONG,
         SecondaryBuffer: BOOLEAN,
         ChargeQuota: BOOLEAN,
@@ -45,4 +46,12 @@ extern "system" {
 
     #[must_use]
     pub fn PsRemoveLoadImageNotifyRoutine(NotifyRoutine: LOAD_IMAGE_NOTIFY_ROUTINE) -> NTSTATUS;
+
+    #[must_use]
+    pub fn PsLookupProcessByProcessId(ProcessId: HANDLE, Process: *mut PEPROCESS) -> NTSTATUS;
+
+    pub fn KeAttachProcess(Process: PEPROCESS);
+
+    pub fn KeDetachProcess();
+
 }
