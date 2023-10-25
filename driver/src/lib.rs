@@ -7,12 +7,15 @@ mod include;
 use core::panic::PanicInfo;
 
 extern crate alloc;
+use crate::include::{
+    ntddk::*,
+    types::{
+        IMAGE_INFO, LOAD_IMAGE_NOTIFY_ROUTINE, LOCK_OPERATION, MEMORY_CACHING_TYPE,
+        MM_PAGE_PRIORITY, PEPROCESS, UNICODE_STRING,
+    },
+};
 use alloc::ffi::CString;
 use core::{ffi::c_void, ptr};
-use include::{
-    ntddk::{IoAllocateMdl, MmMapLockedPagesSpecifyCache, MmProbeAndLockPages, MmUnmapLockedPages},
-    types::{IMAGE_INFO, LOCK_OPERATION, MEMORY_CACHING_TYPE, MM_PAGE_PRIORITY, UNICODE_STRING},
-};
 use kernel_log::KernelLogger;
 use log::LevelFilter;
 use winapi::{
@@ -21,14 +24,6 @@ use winapi::{
         ntdef::{HANDLE, NTSTATUS},
         ntstatus::STATUS_SUCCESS,
     },
-};
-
-use crate::include::{
-    ntddk::{
-        IoFreeMdl, KeAttachProcess, KeDetachProcess, MmUnlockPages, ObDereferenceObject,
-        PsLookupProcessByProcessId, PsSetLoadImageNotifyRoutine,
-    },
-    types::{LOAD_IMAGE_NOTIFY_ROUTINE, PEPROCESS},
 };
 
 const JMP_SIZE: usize = 14;
